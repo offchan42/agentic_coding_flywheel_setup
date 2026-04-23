@@ -5746,8 +5746,8 @@ projects_base = "/data/projects"
 
 [models]
 # Default models when no specifier given
-default_claude = "claude-opus-4-5-20251101"
-default_codex = "gpt-5.2-codex"
+default_claude = "claude-opus-4-7"
+default_codex = "gpt-5.5-codex"
 default_gemini = "gemini-3-pro-preview"
 
 [agents]

@@ -88,6 +88,9 @@ ACFS_COMMIT_SHA_FULL=""  # Full SHA for pinning resume scripts (40 chars)
 ACFS_EARLY_CURL_ARGS=(--connect-timeout 30 --max-time 300 -fsSL)
 # Note: ACFS_HOME is set after TARGET_HOME is determined
 ACFS_LOG_DIR="/var/log/acfs"
+_ACFS_BOOTSTRAP_DIR_OWNED=false
+_ACFS_BOOTSTRAP_DIR_CREATED=""
+_ACFS_BOOTSTRAP_DIR_TMP_ROOT=""
 # SCRIPT_DIR is empty when running via curl|bash (stdin; no file on disk)
 SCRIPT_DIR=""
 if [[ -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
@@ -1130,6 +1133,23 @@ _acfs_signal_handler() {
     esac
 }
 
+acfs_bootstrap_dir_is_owned_temp() {
+    local dir="${1:-}"
+    local tmp_root="${_ACFS_BOOTSTRAP_DIR_TMP_ROOT:-}"
+
+    [[ "${_ACFS_BOOTSTRAP_DIR_OWNED:-false}" == "true" ]] || return 1
+    [[ -n "$dir" ]] || return 1
+    [[ -n "${_ACFS_BOOTSTRAP_DIR_CREATED:-}" ]] || return 1
+    [[ "$dir" == "$_ACFS_BOOTSTRAP_DIR_CREATED" ]] || return 1
+
+    dir="${dir%/}"
+    [[ "$dir" == /* ]] || return 1
+    [[ "$dir" != "/" ]] || return 1
+    [[ "$tmp_root" == /* ]] || return 1
+    [[ "$dir" == "$tmp_root"/acfs-bootstrap-* ]] || return 1
+    [[ -d "$dir" ]] || return 1
+}
+
 cleanup() {
     # Capture exit code FIRST, before any other commands can overwrite $?
     local exit_code=$?
@@ -1137,8 +1157,8 @@ cleanup() {
     # Cleanup must never abort — disable errexit for the entire function.
     set +e
 
-    if [[ -n "${ACFS_BOOTSTRAP_DIR:-}" ]] && [[ -d "$ACFS_BOOTSTRAP_DIR" ]]; then
-        rm -rf "$ACFS_BOOTSTRAP_DIR" 2>/dev/null || true
+    if acfs_bootstrap_dir_is_owned_temp "${ACFS_BOOTSTRAP_DIR:-}"; then
+        rm -rf -- "$ACFS_BOOTSTRAP_DIR" 2>/dev/null || true
     fi
 
     if [[ -n "${ACFS_TMP_ARCHIVE:-}" ]] && [[ -f "$ACFS_TMP_ARCHIVE" ]]; then
@@ -2301,6 +2321,10 @@ bootstrap_repo_archive() {
         log_fatal "Failed to create temp dir for extraction"
     }
     ACFS_BOOTSTRAP_DIR="$tmp_dir"
+    _ACFS_BOOTSTRAP_DIR_CREATED="$tmp_dir"
+    _ACFS_BOOTSTRAP_DIR_TMP_ROOT="${TMPDIR:-/tmp}"
+    _ACFS_BOOTSTRAP_DIR_TMP_ROOT="${_ACFS_BOOTSTRAP_DIR_TMP_ROOT%/}"
+    _ACFS_BOOTSTRAP_DIR_OWNED=true
     # Make bootstrap dir world-readable so ubuntu user can access scripts
     "$chmod_bin" 755 "$tmp_dir"
 

@@ -146,6 +146,7 @@ ACFS_CI=true \
     > "$LOG_FILE" 2>&1 || true
 
 assert_ok "Install script executed without crash" test -f "$LOG_FILE"
+assert_ok "Caller-provided bootstrap dir was not treated as installer-owned cleanup" test -d "$BOOTSTRAP_DIR"
 echo ""
 
 # ────────────────────────────────────────

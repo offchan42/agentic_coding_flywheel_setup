@@ -2652,6 +2652,91 @@ update_is_linux_arm64() {
     [[ "$(uname -s 2>/dev/null)" == "Linux" ]] && [[ "$arch" == "aarch64" || "$arch" == "arm64" ]]
 }
 
+update_fsfs_linux_target_triple() {
+    local arch=""
+
+    [[ "$(uname -s 2>/dev/null)" == "Linux" ]] || return 1
+    arch="$(uname -m 2>/dev/null || true)"
+
+    case "$arch" in
+        x86_64|amd64)
+            printf '%s\n' "x86_64-unknown-linux-musl"
+            ;;
+        aarch64|arm64)
+            printf '%s\n' "aarch64-unknown-linux-musl"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+update_resolve_fsfs_latest_version() {
+    if [[ -n "${ACFS_FSFS_VERSION:-}" ]]; then
+        printf '%s\n' "$ACFS_FSFS_VERSION"
+        return 0
+    fi
+
+    local latest_url="https://api.github.com/repos/Dicklesworthstone/frankensearch/releases/latest"
+    local tag=""
+    tag="$(curl -fsSL --connect-timeout 30 --max-time 60 -H "Accept: application/vnd.github.v3+json" "$latest_url" 2>/dev/null \
+        | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+        | head -n 1 || true)"
+
+    [[ -n "$tag" ]] || return 1
+    printf '%s\n' "$tag"
+}
+
+update_fetch_fsfs_artifact_checksum() {
+    local checksum_url="$1"
+    local checksum=""
+
+    checksum="$(curl -fsSL --connect-timeout 30 --max-time 60 "$checksum_url" 2>/dev/null \
+        | awk 'NR == 1 { print $1 }' || true)"
+    [[ "$checksum" =~ ^[0-9A-Fa-f]{64}$ ]] || return 1
+    printf '%s\n' "${checksum,,}"
+}
+
+update_run_fsfs_installer() {
+    local -a fsfs_args=("$@")
+    local fsfs_target=""
+    local fsfs_version=""
+    local fsfs_version_bare=""
+    local fsfs_artifact_url=""
+    local fsfs_checksum=""
+
+    if [[ "$(uname -s 2>/dev/null)" == "Linux" ]]; then
+        if ! fsfs_target="$(update_fsfs_linux_target_triple 2>/dev/null)"; then
+            log_to_file "FrankenSearch Linux lite artifact unsupported for this architecture"
+            echo "FrankenSearch Linux binary artifact unavailable for this architecture; skipping source-build fallback" >&2
+            return 1
+        fi
+
+        if ! fsfs_version="$(update_resolve_fsfs_latest_version 2>/dev/null)"; then
+            log_to_file "FrankenSearch release resolution failed; skipping source-build fallback"
+            echo "Unable to resolve FrankenSearch release; skipping source-build fallback" >&2
+            return 1
+        fi
+
+        fsfs_version_bare="${fsfs_version#v}"
+        fsfs_artifact_url="https://github.com/Dicklesworthstone/frankensearch/releases/download/${fsfs_version}/fsfs-lite-${fsfs_version_bare}-${fsfs_target}.tar.xz"
+        if ! fsfs_checksum="$(update_fetch_fsfs_artifact_checksum "${fsfs_artifact_url}.sha256" 2>/dev/null)"; then
+            log_to_file "FrankenSearch lite artifact checksum unavailable; skipping source-build fallback"
+            echo "Unable to verify FrankenSearch lite artifact checksum; skipping source-build fallback" >&2
+            return 1
+        fi
+
+        fsfs_args+=(
+            --version "$fsfs_version"
+            --artifact-url "$fsfs_artifact_url"
+            --checksum "$fsfs_checksum"
+        )
+        log_to_file "FrankenSearch Linux lite artifact selected: $fsfs_artifact_url"
+    fi
+
+    update_run_verified_installer fsfs "${fsfs_args[@]}"
+}
+
 update_run_meta_skill_source_install() {
     local cargo_bin=""
     cargo_bin="$(update_binary_path cargo 2>/dev/null || true)"
@@ -4278,8 +4363,9 @@ update_stack() {
     # S2P (Source to Prompt TUI) - always install/update
     run_cmd "S2P" update_run_verified_installer s2p -- --skip-cass
 
-    # FrankenSearch (fsfs) - always install/update
-    run_cmd "FrankenSearch" update_run_verified_installer fsfs --easy-mode
+    # FrankenSearch (fsfs) - prefer the small Linux release asset to avoid
+    # upstream's missing-full-binary source-build fallback on Ubuntu.
+    run_cmd "FrankenSearch" update_run_fsfs_installer --easy-mode
 
     # Storage Ballast Helper (sbh) - always install/update
     run_cmd "SBH" update_run_verified_installer sbh

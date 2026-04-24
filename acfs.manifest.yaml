@@ -2296,7 +2296,7 @@ modules:
       features:
         - "BM25 lexical + semantic retrieval"
         - "Progressive delivery (fast initial + quality refinement)"
-        - "Embedded ML models"
+        - "Local ML model support"
         - "JSON API for agent integration"
       tech_stack: ["Rust", "Tantivy", "ONNX", "BM25"]
       use_cases:

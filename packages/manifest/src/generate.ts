@@ -1092,6 +1092,101 @@ function generateVerifiedInstallerSnippet(module: Module): string[] {
     'fi',
   ];
 
+  const fsfsInstallerArgs = vi.args && vi.args.length > 0
+    ? vi.args.map(a => shellQuoteVerifiedInstallerArg(a)).join(' ')
+    : '';
+  const fsfsExecCmd = module.run_as === 'target_user'
+    ? `run_as_target_runner ${shellQuote(vi.runner)} '-s' '--' "\${fsfs_installer_args[@]}"`
+    : `${shellQuote(vi.runner)} -s -- "\${fsfs_installer_args[@]}"`;
+  const fsfsVerifiedInstallAttemptLines: string[] = [
+    'if acfs_security_init; then',
+    '    # Check if KNOWN_INSTALLERS is available as an associative array (declare -A)',
+    '    # The grep ensures we specifically have an associative array, not just any variable',
+    "    if declare -p KNOWN_INSTALLERS 2>/dev/null | grep -q 'declare -A'; then",
+    `        local tool="${tool}"`,
+    '        local url=""',
+    '        local expected_sha256=""',
+    '',
+    '        # Safe access with explicit empty default',
+    '        url="${KNOWN_INSTALLERS[$tool]:-}"',
+    '        if ! expected_sha256="$(get_checksum "$tool")"; then',
+    `            log_error "${escapeBash(module.id)}: get_checksum failed for tool '$tool'"`,
+    '            expected_sha256=""',
+    '        fi',
+    '',
+    '        if [[ -n "$url" ]] && [[ -n "$expected_sha256" ]]; then',
+    `            local -a fsfs_installer_args=(${fsfsInstallerArgs})`,
+    '            local fsfs_arch=""',
+    '            local fsfs_target=""',
+    '            local fsfs_version=""',
+    '            local fsfs_version_bare=""',
+    '            local fsfs_artifact_url=""',
+    '            local fsfs_checksum=""',
+    '            local fsfs_can_run=true',
+    '',
+    '            if [[ "$(uname -s 2>/dev/null)" == "Linux" ]]; then',
+    '                fsfs_arch="$(uname -m 2>/dev/null || true)"',
+    '                case "$fsfs_arch" in',
+    '                    x86_64|amd64) fsfs_target="x86_64-unknown-linux-musl" ;;',
+    '                    aarch64|arm64) fsfs_target="aarch64-unknown-linux-musl" ;;',
+    '                    *) fsfs_target="" ;;',
+    '                esac',
+    '',
+    '                if [[ -z "$fsfs_target" ]]; then',
+    '                    fsfs_can_run=false',
+    `                    log_warn "${escapeBash(module.id)}: FrankenSearch Linux binary artifact unavailable for this architecture; skipping source-build fallback"`,
+    '                else',
+    '                    if [[ -n "${ACFS_FSFS_VERSION:-}" ]]; then',
+    '                        fsfs_version="$ACFS_FSFS_VERSION"',
+    '                    else',
+    '                        fsfs_version="$(curl -fsSL --connect-timeout 30 --max-time 60 -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/Dicklesworthstone/frankensearch/releases/latest" 2>/dev/null | sed -n \'s/.*"tag_name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p\' | head -n 1 || true)"',
+    '                    fi',
+    '',
+    '                    if [[ -z "$fsfs_version" ]]; then',
+    '                        fsfs_can_run=false',
+    `                        log_warn "${escapeBash(module.id)}: unable to resolve FrankenSearch release; skipping source-build fallback"`,
+    '                    else',
+    '                        fsfs_version_bare="${fsfs_version#v}"',
+    '                        fsfs_artifact_url="https://github.com/Dicklesworthstone/frankensearch/releases/download/${fsfs_version}/fsfs-lite-${fsfs_version_bare}-${fsfs_target}.tar.xz"',
+    '                        fsfs_checksum="$(curl -fsSL --connect-timeout 30 --max-time 60 "${fsfs_artifact_url}.sha256" 2>/dev/null | awk \'NR == 1 { print $1 }\' || true)"',
+    '                        if [[ "$fsfs_checksum" =~ ^[0-9A-Fa-f]{64}$ ]]; then',
+    '                            fsfs_installer_args+=(',
+    '                                --version "$fsfs_version"',
+    '                                --artifact-url "$fsfs_artifact_url"',
+    '                                --checksum "${fsfs_checksum,,}"',
+    '                            )',
+    `                            log_info "${escapeBash(module.id)}: using FrankenSearch Linux lite artifact $fsfs_artifact_url"`,
+    '                        else',
+    '                            fsfs_can_run=false',
+    `                            log_warn "${escapeBash(module.id)}: unable to verify FrankenSearch lite artifact checksum; skipping source-build fallback"`,
+    '                        fi',
+    '                    fi',
+    '                fi',
+    '            fi',
+    '',
+    '            if [[ "$fsfs_can_run" == "true" ]]; then',
+    `                if verify_checksum "$url" "$expected_sha256" "$tool" | ${fsfsExecCmd}; then`,
+    '                    install_success=true',
+    '                else',
+    `                    log_error "${escapeBash(module.id)}: verify_checksum or installer execution failed"`,
+    '                fi',
+    '            fi',
+    '        else',
+    '            if [[ -z "$url" ]]; then',
+    `                log_error "${escapeBash(module.id)}: KNOWN_INSTALLERS[$tool] not found"`,
+    '            fi',
+    '            if [[ -z "$expected_sha256" ]]; then',
+    `                log_error "${escapeBash(module.id)}: checksum for '$tool' not found"`,
+    '            fi',
+    '        fi',
+    '    else',
+    `        log_error "${escapeBash(module.id)}: KNOWN_INSTALLERS array not available"`,
+    '    fi',
+    'else',
+    `    log_error "${escapeBash(module.id)}: acfs_security_init failed - check security.sh and checksums.yaml"`,
+    'fi',
+  ];
+
   if (tool === 'ms') {
     const sourceInstallCmd = module.run_as === 'target_user'
       ? 'run_as_target_shell "command -v cargo >/dev/null 2>&1 && cargo install --git https://github.com/Dicklesworthstone/meta_skill --force"'
@@ -1110,6 +1205,8 @@ function generateVerifiedInstallerSnippet(module: Module): string[] {
       ...indentLines(verifiedInstallAttemptLines, 4),
       'fi',
     );
+  } else if (tool === 'fsfs') {
+    lines.push(...fsfsVerifiedInstallAttemptLines);
   } else {
     lines.push(...verifiedInstallAttemptLines);
   }

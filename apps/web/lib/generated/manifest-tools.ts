@@ -399,7 +399,7 @@ export const manifestTools: ManifestWebTool[] = [
     features: [
       "BM25 lexical + semantic retrieval",
       "Progressive delivery (fast initial + quality refinement)",
-      "Embedded ML models",
+      "Local ML model support",
       "JSON API for agent integration",
     ],
     techStack: [

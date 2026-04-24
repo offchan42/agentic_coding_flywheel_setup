@@ -7568,6 +7568,28 @@ EOF
     assert_output --partial "Invalid inline env assignment"
 }
 
+@test "update fsfs installer uses Linux lite release artifact args" {
+    update_fsfs_linux_target_triple() { printf '%s\n' "x86_64-unknown-linux-musl"; }
+    update_resolve_fsfs_latest_version() { printf '%s\n' "v1.2.5"; }
+    update_fetch_fsfs_artifact_checksum() { printf '%s\n' "e82922dc1e3fad90e4b4fc145853f9c30b821c51ef4496a16b4f93d39da6b01a"; }
+    log_to_file() { :; }
+    update_run_verified_installer() {
+        printf 'arg=%s\n' "$@"
+    }
+
+    run update_run_fsfs_installer --easy-mode
+
+    assert_success
+    assert_output --partial "arg=fsfs"
+    assert_output --partial "arg=--easy-mode"
+    assert_output --partial "arg=--version"
+    assert_output --partial "arg=v1.2.5"
+    assert_output --partial "arg=--artifact-url"
+    assert_output --partial "arg=https://github.com/Dicklesworthstone/frankensearch/releases/download/v1.2.5/fsfs-lite-1.2.5-x86_64-unknown-linux-musl.tar.xz"
+    assert_output --partial "arg=--checksum"
+    assert_output --partial "arg=e82922dc1e3fad90e4b4fc145853f9c30b821c51ef4496a16b4f93d39da6b01a"
+}
+
 @test "agents verified installer commands shell-quote dynamic command parts" {
     local agents_lib="$PROJECT_ROOT/scripts/lib/agents.sh"
 

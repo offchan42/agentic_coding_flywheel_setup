@@ -2109,10 +2109,61 @@ install_stack_frankensearch() {
                     fi
 
                     if [[ -n "$url" ]] && [[ -n "$expected_sha256" ]]; then
-                        if verify_checksum "$url" "$expected_sha256" "$tool" | run_as_target_runner 'bash' '-s' '--' '--easy-mode'; then
-                            install_success=true
-                        else
-                            log_error "stack.frankensearch: verify_checksum or installer execution failed"
+                        local -a fsfs_installer_args=('--easy-mode')
+                        local fsfs_arch=""
+                        local fsfs_target=""
+                        local fsfs_version=""
+                        local fsfs_version_bare=""
+                        local fsfs_artifact_url=""
+                        local fsfs_checksum=""
+                        local fsfs_can_run=true
+
+                        if [[ "$(uname -s 2>/dev/null)" == "Linux" ]]; then
+                            fsfs_arch="$(uname -m 2>/dev/null || true)"
+                            case "$fsfs_arch" in
+                                x86_64|amd64) fsfs_target="x86_64-unknown-linux-musl" ;;
+                                aarch64|arm64) fsfs_target="aarch64-unknown-linux-musl" ;;
+                                *) fsfs_target="" ;;
+                            esac
+
+                            if [[ -z "$fsfs_target" ]]; then
+                                fsfs_can_run=false
+                                log_warn "stack.frankensearch: FrankenSearch Linux binary artifact unavailable for this architecture; skipping source-build fallback"
+                            else
+                                if [[ -n "${ACFS_FSFS_VERSION:-}" ]]; then
+                                    fsfs_version="$ACFS_FSFS_VERSION"
+                                else
+                                    fsfs_version="$(curl -fsSL --connect-timeout 30 --max-time 60 -H "Accept: application/vnd.github.v3+json" "https://api.github.com/repos/Dicklesworthstone/frankensearch/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1 || true)"
+                                fi
+
+                                if [[ -z "$fsfs_version" ]]; then
+                                    fsfs_can_run=false
+                                    log_warn "stack.frankensearch: unable to resolve FrankenSearch release; skipping source-build fallback"
+                                else
+                                    fsfs_version_bare="${fsfs_version#v}"
+                                    fsfs_artifact_url="https://github.com/Dicklesworthstone/frankensearch/releases/download/${fsfs_version}/fsfs-lite-${fsfs_version_bare}-${fsfs_target}.tar.xz"
+                                    fsfs_checksum="$(curl -fsSL --connect-timeout 30 --max-time 60 "${fsfs_artifact_url}.sha256" 2>/dev/null | awk 'NR == 1 { print $1 }' || true)"
+                                    if [[ "$fsfs_checksum" =~ ^[0-9A-Fa-f]{64}$ ]]; then
+                                        fsfs_installer_args+=(
+                                            --version "$fsfs_version"
+                                            --artifact-url "$fsfs_artifact_url"
+                                            --checksum "${fsfs_checksum,,}"
+                                        )
+                                        log_info "stack.frankensearch: using FrankenSearch Linux lite artifact $fsfs_artifact_url"
+                                    else
+                                        fsfs_can_run=false
+                                        log_warn "stack.frankensearch: unable to verify FrankenSearch lite artifact checksum; skipping source-build fallback"
+                                    fi
+                                fi
+                            fi
+                        fi
+
+                        if [[ "$fsfs_can_run" == "true" ]]; then
+                            if verify_checksum "$url" "$expected_sha256" "$tool" | run_as_target_runner 'bash' '-s' '--' "${fsfs_installer_args[@]}"; then
+                                install_success=true
+                            else
+                                log_error "stack.frankensearch: verify_checksum or installer execution failed"
+                            fi
                         fi
                     else
                         if [[ -z "$url" ]]; then

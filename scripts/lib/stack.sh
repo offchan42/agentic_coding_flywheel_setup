@@ -788,6 +788,88 @@ _stack_run_verified_installer() {
     _stack_run_verified_installer_with_env "$tool" "" "$@"
 }
 
+_stack_fsfs_linux_target_triple() {
+    local arch=""
+
+    [[ "$(uname -s 2>/dev/null)" == "Linux" ]] || return 1
+    arch="$(uname -m 2>/dev/null || true)"
+
+    case "$arch" in
+        x86_64|amd64)
+            printf '%s\n' "x86_64-unknown-linux-musl"
+            ;;
+        aarch64|arm64)
+            printf '%s\n' "aarch64-unknown-linux-musl"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+_stack_resolve_fsfs_latest_version() {
+    if [[ -n "${ACFS_FSFS_VERSION:-}" ]]; then
+        printf '%s\n' "$ACFS_FSFS_VERSION"
+        return 0
+    fi
+
+    local latest_url="https://api.github.com/repos/Dicklesworthstone/frankensearch/releases/latest"
+    local tag=""
+    tag="$(curl -fsSL --connect-timeout 30 --max-time 60 -H "Accept: application/vnd.github.v3+json" "$latest_url" 2>/dev/null \
+        | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+        | head -n 1 || true)"
+
+    [[ -n "$tag" ]] || return 1
+    printf '%s\n' "$tag"
+}
+
+_stack_fetch_fsfs_artifact_checksum() {
+    local checksum_url="$1"
+    local checksum=""
+
+    checksum="$(curl -fsSL --connect-timeout 30 --max-time 60 "$checksum_url" 2>/dev/null \
+        | awk 'NR == 1 { print $1 }' || true)"
+    [[ "$checksum" =~ ^[0-9A-Fa-f]{64}$ ]] || return 1
+    printf '%s\n' "${checksum,,}"
+}
+
+_stack_run_fsfs_installer() {
+    local -a fsfs_args=("$@")
+    local fsfs_target=""
+    local fsfs_version=""
+    local fsfs_version_bare=""
+    local fsfs_artifact_url=""
+    local fsfs_checksum=""
+
+    if [[ "$(uname -s 2>/dev/null)" == "Linux" ]]; then
+        if ! fsfs_target="$(_stack_fsfs_linux_target_triple 2>/dev/null)"; then
+            log_warn "FrankenSearch Linux binary artifact unavailable for this architecture; skipping source-build fallback"
+            return 1
+        fi
+
+        if ! fsfs_version="$(_stack_resolve_fsfs_latest_version 2>/dev/null)"; then
+            log_warn "Unable to resolve FrankenSearch release; skipping source-build fallback"
+            return 1
+        fi
+
+        fsfs_version_bare="${fsfs_version#v}"
+        fsfs_artifact_url="https://github.com/Dicklesworthstone/frankensearch/releases/download/${fsfs_version}/fsfs-lite-${fsfs_version_bare}-${fsfs_target}.tar.xz"
+        if ! fsfs_checksum="$(_stack_fetch_fsfs_artifact_checksum "${fsfs_artifact_url}.sha256" 2>/dev/null)"; then
+            log_warn "Unable to verify FrankenSearch lite artifact checksum; skipping source-build fallback"
+            return 1
+        fi
+
+        fsfs_args+=(
+            --version "$fsfs_version"
+            --artifact-url "$fsfs_artifact_url"
+            --checksum "$fsfs_checksum"
+        )
+        log_detail "Using FrankenSearch Linux lite artifact: $fsfs_artifact_url"
+    fi
+
+    _stack_run_verified_installer fsfs "${fsfs_args[@]}"
+}
+
 _stack_run_installer() {
     if [[ $# -lt 1 ]]; then
         log_warn "_stack_run_installer requires a tool name"
@@ -1657,7 +1739,7 @@ install_fsfs() {
 
     log_detail "Installing ${STACK_NAMES[$tool]}..."
 
-    if _stack_run_verified_installer "$tool" --easy-mode; then
+    if _stack_run_fsfs_installer --easy-mode; then
         if _stack_is_installed "$tool"; then
             log_success "${STACK_NAMES[$tool]} installed"
             return 0

@@ -302,6 +302,20 @@ describe('Generated verified installer args', () => {
     );
   });
 
+  test('stack.frankensearch selects lite Linux release artifacts', () => {
+    const stackPath = resolve(GENERATED_DIR, 'install_stack.sh');
+    expect(existsSync(stackPath)).toBe(true);
+    const stackContent = readFileSync(stackPath, 'utf-8');
+
+    expect(stackContent).toContain('local -a fsfs_installer_args=(\'--easy-mode\')');
+    expect(stackContent).toContain('fsfs_target="x86_64-unknown-linux-musl"');
+    expect(stackContent).toContain('fsfs_target="aarch64-unknown-linux-musl"');
+    expect(stackContent).toContain('fsfs-lite-${fsfs_version_bare}-${fsfs_target}.tar.xz');
+    expect(stackContent).toContain('awk \'NR == 1 { print $1 }\'');
+    expect(stackContent).toContain('--checksum "${fsfs_checksum,,}"');
+    expect(stackContent).toContain('run_as_target_runner \'bash\' \'-s\' \'--\' "${fsfs_installer_args[@]}"');
+  });
+
   test('stack.slb Go PATH setup ignores commented PATH examples', () => {
     const stackPath = resolve(GENERATED_DIR, 'install_stack.sh');
     expect(existsSync(stackPath)).toBe(true);

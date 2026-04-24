@@ -1779,10 +1779,10 @@ agent_mail_fix_write_unit() {
     storage_root_unit="$(doctor_fix_systemd_unit_path_escape "$storage_root")" || return 1
     rust_log_env="$(doctor_fix_systemd_unit_env_assignment RUST_LOG info)" || return 1
     storage_root_env="$(doctor_fix_systemd_unit_env_assignment STORAGE_ROOT "$storage_root")" || return 1
-database_url_env="$(doctor_fix_systemd_unit_env_assignment DATABASE_URL "$db_url")" || return 1
-http_path_env="$(doctor_fix_systemd_unit_env_assignment HTTP_PATH "$am_mcp_path")" || return 1
-am_bin_exec="$(doctor_fix_systemd_unit_exec_command "$am_bin")" || return 1
-am_mcp_path_exec="$(doctor_fix_systemd_unit_exec_arg "$am_mcp_path")" || return 1
+    database_url_env="$(doctor_fix_systemd_unit_env_assignment DATABASE_URL "$db_url")" || return 1
+    http_path_env="$(doctor_fix_systemd_unit_env_assignment HTTP_PATH "$am_mcp_path")" || return 1
+    am_bin_exec="$(doctor_fix_systemd_unit_exec_command "$am_bin")" || return 1
+    am_mcp_path_exec="$(doctor_fix_systemd_unit_exec_arg "$am_mcp_path")" || return 1
     cat > "$unit_file" <<UNIT_EOF
 [Unit]
 Description=MCP Agent Mail Server

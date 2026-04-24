@@ -1798,7 +1798,7 @@ Key capabilities:
 keyword matches and semantic vector search for conceptual similarity. Results are delivered
 progressively — fast lexical hits arrive first while the semantic pass refines rankings.
 
-The embedded ML models (ONNX Runtime) run locally with no external API calls. Indexing
+Local ML model support runs without external API calls. Indexing
 is incremental and handles code, documentation, and session logs equally well.
 
 JSON API enables direct integration from AI agents — ask natural language questions about
@@ -1813,7 +1813,7 @@ finds too many results and you need semantic narrowing.`,
     features: [
       "BM25 lexical + semantic retrieval",
       "Progressive delivery (fast initial + quality refinement)",
-      "Embedded ONNX ML models (no API calls)",
+      "Local ML model support (no API calls)",
       "JSON API for agent integration",
       "Incremental indexing",
     ],
@@ -1823,7 +1823,7 @@ finds too many results and you need semantic narrowing.`,
       "fsfs status                  # Index health",
     ],
     installCommand:
-      'curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/frankensearch/main/install.sh" | bash -s -- --easy-mode',
+      'curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/frankensearch/main/install.sh" | bash -s -- --easy-mode --from-source --lite',
     language: "Rust",
   },
   {

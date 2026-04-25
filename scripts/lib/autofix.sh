@@ -351,6 +351,11 @@ PYEOF
     return 0
 }
 
+autofix_remove_temp_file() {
+    local temp_file="${1:-}"
+    [[ -n "$temp_file" ]] && rm -f -- "$temp_file" 2>/dev/null || true
+}
+
 autofix_sync_backup_path() {
     local target_path="$1"
     local path_type=""
@@ -429,13 +434,11 @@ write_atomic() {
         log_error "Failed to create temp file for atomic write: $target_file"
         return 1
     }
-    # Use ${temp_file:-} to avoid "unbound variable" under set -u when the
-    # RETURN trap leaks to a calling scope (bash < 5.1 bug, or functrace).
-    trap 'rm -f "${temp_file:-}" 2>/dev/null || true; trap - RETURN' RETURN
 
     # Write content to temp file
     if ! printf '%s\n' "$content" > "$temp_file"; then
         log_error "Failed to write temp file: $temp_file"
+        autofix_remove_temp_file "$temp_file"
         return 1
     fi
 
@@ -447,6 +450,7 @@ write_atomic() {
     # Atomic rename
     if ! mv "$temp_file" "$target_file"; then
         log_error "Failed to move temp file into place: $target_file"
+        autofix_remove_temp_file "$temp_file"
         return 1
     fi
 
@@ -455,6 +459,7 @@ write_atomic() {
         log_warn "Failed to fsync directory: $target_dir"
     fi
 
+    autofix_remove_temp_file "$temp_file"
     return 0
 }
 
@@ -470,19 +475,18 @@ append_atomic() {
         log_error "Failed to create temp file for atomic append: $target_file"
         return 1
     }
-    # Use ${temp_file:-} to avoid "unbound variable" under set -u when the
-    # RETURN trap leaks to a calling scope (bash < 5.1 bug, or functrace).
-    trap 'rm -f "${temp_file:-}" 2>/dev/null || true; trap - RETURN' RETURN
 
     # Copy existing content + new line to temp
     if [[ -f "$target_file" ]]; then
         cat "$target_file" > "$temp_file" || { 
             log_error "Failed to copy existing content to temp file: $temp_file"
+            autofix_remove_temp_file "$temp_file"
             return 1
         }
     fi
     if ! printf '%s\n' "$content" >> "$temp_file"; then
         log_error "Failed to append content to temp file: $temp_file"
+        autofix_remove_temp_file "$temp_file"
         return 1
     fi
 
@@ -493,6 +497,7 @@ append_atomic() {
 
     if ! mv "$temp_file" "$target_file"; then
         log_error "Failed to move temp file into place: $target_file"
+        autofix_remove_temp_file "$temp_file"
         return 1
     fi
 
@@ -500,6 +505,7 @@ append_atomic() {
         log_warn "Failed to fsync directory: $target_dir"
     fi
 
+    autofix_remove_temp_file "$temp_file"
     return 0
 }
 
@@ -781,7 +787,6 @@ repair_state_files() {
             log_error "Failed to create temp file for changes repair"
             return 1
         }
-        trap 'rm -f "${temp_file:-}" 2>/dev/null || true; trap - RETURN' RETURN
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
             if echo "$line" | jq -e . >/dev/null 2>&1; then
@@ -797,6 +802,7 @@ repair_state_files() {
                 fi
                 if ! printf '%s\n' "$line" >> "$temp_file"; then
                     log_error "[REPAIR] Failed to rewrite repaired changes journal"
+                    autofix_remove_temp_file "$temp_file"
                     return 1
                 fi
             else
@@ -808,6 +814,7 @@ repair_state_files() {
         if [[ $repaired -gt 0 ]]; then
             if ! mv "$temp_file" "$ACFS_CHANGES_FILE"; then
                 log_error "[REPAIR] Failed to replace changes journal with repaired copy"
+                autofix_remove_temp_file "$temp_file"
                 return 1
             fi
             if ! fsync_file "$ACFS_CHANGES_FILE"; then
@@ -816,7 +823,7 @@ repair_state_files() {
             fi
             log_info "[REPAIR] Removed $repaired invalid lines from changes.jsonl"
         else
-            rm -f "$temp_file" 2>/dev/null || true
+            autofix_remove_temp_file "$temp_file"
         fi
     fi
 
@@ -827,12 +834,12 @@ repair_state_files() {
             log_error "Failed to create temp file for undos repair"
             return 1
         }
-        trap 'rm -f "${temp_file:-}" 2>/dev/null || true; trap - RETURN' RETURN
         while IFS= read -r line; do
             [[ -z "$line" ]] && continue
             if echo "$line" | jq -e . >/dev/null 2>&1; then
                 if ! printf '%s\n' "$line" >> "$temp_file"; then
                     log_error "[REPAIR] Failed to rewrite repaired undo journal"
+                    autofix_remove_temp_file "$temp_file"
                     return 1
                 fi
             else
@@ -844,6 +851,7 @@ repair_state_files() {
         if [[ $repaired_undos -gt 0 ]]; then
             if ! mv "$temp_file" "$ACFS_UNDOS_FILE"; then
                 log_error "[REPAIR] Failed to replace undo journal with repaired copy"
+                autofix_remove_temp_file "$temp_file"
                 return 1
             fi
             if ! fsync_file "$ACFS_UNDOS_FILE"; then
@@ -852,7 +860,7 @@ repair_state_files() {
             fi
             log_info "[REPAIR] Removed $repaired_undos invalid lines from undos.jsonl"
         else
-            rm -f "$temp_file"
+            autofix_remove_temp_file "$temp_file"
         fi
     fi
 

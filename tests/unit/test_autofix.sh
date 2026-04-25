@@ -142,6 +142,76 @@ test_atomic_append() {
     return 0
 }
 
+test_write_atomic_preserves_temp_through_fsync_functions() {
+    local test_file="/tmp/test_atomic_fsync_write_$$"
+    local original_fsync_file original_fsync_directory
+    original_fsync_file="$(declare -f fsync_file)"
+    original_fsync_directory="$(declare -f fsync_directory)"
+
+    fsync_file() {
+        return 0
+    }
+    fsync_directory() {
+        return 0
+    }
+
+    if ! write_atomic "$test_file" "fsync function content"; then
+        eval "$original_fsync_file"
+        eval "$original_fsync_directory"
+        echo "  write_atomic failed after shell-function fsync"
+        rm -f "$test_file"
+        return 1
+    fi
+
+    eval "$original_fsync_file"
+    eval "$original_fsync_directory"
+
+    if [[ "$(cat "$test_file" 2>/dev/null)" != "fsync function content" ]]; then
+        echo "  write_atomic content missing after shell-function fsync"
+        rm -f "$test_file"
+        return 1
+    fi
+
+    rm -f "$test_file"
+    return 0
+}
+
+test_append_atomic_preserves_temp_through_fsync_functions() {
+    local test_file="/tmp/test_atomic_fsync_append_$$"
+    local original_fsync_file original_fsync_directory
+    original_fsync_file="$(declare -f fsync_file)"
+    original_fsync_directory="$(declare -f fsync_directory)"
+
+    printf '%s\n' "first" > "$test_file"
+
+    fsync_file() {
+        return 0
+    }
+    fsync_directory() {
+        return 0
+    }
+
+    if ! append_atomic "$test_file" "second"; then
+        eval "$original_fsync_file"
+        eval "$original_fsync_directory"
+        echo "  append_atomic failed after shell-function fsync"
+        rm -f "$test_file"
+        return 1
+    fi
+
+    eval "$original_fsync_file"
+    eval "$original_fsync_directory"
+
+    if [[ "$(tail -1 "$test_file" 2>/dev/null)" != "second" ]]; then
+        echo "  append_atomic content missing after shell-function fsync"
+        rm -f "$test_file"
+        return 1
+    fi
+
+    rm -f "$test_file"
+    return 0
+}
+
 # Test: Backup creation with checksum
 test_backup_creation() {
     setup_test_env
@@ -836,6 +906,45 @@ test_state_repair() {
     line_count=$(wc -l < "$ACFS_CHANGES_FILE")
     if [[ "$line_count" -ne 2 ]]; then
         echo "  Expected 2 lines after repair, got $line_count"
+        cleanup_test_env
+        return 1
+    fi
+
+    cleanup_test_env
+    return 0
+}
+
+test_state_repair_preserves_all_valid_checksummed_records() {
+    setup_test_env
+
+    local record1 record2 checksum1 checksum2 line_count
+    record1='{"id":"chg_001","description":"test1"}'
+    checksum1=$(compute_record_checksum "$record1")
+    record1=$(echo "$record1" | jq -c --arg checksum "$checksum1" '.record_checksum = $checksum')
+
+    record2='{"id":"chg_002","description":"test2"}'
+    checksum2=$(compute_record_checksum "$record2")
+    record2=$(echo "$record2" | jq -c --arg checksum "$checksum2" '.record_checksum = $checksum')
+
+    printf '%s\n' "$record1" > "$ACFS_CHANGES_FILE"
+    printf '%s\n' 'invalid json line' >> "$ACFS_CHANGES_FILE"
+    printf '%s\n' "$record2" >> "$ACFS_CHANGES_FILE"
+
+    if ! repair_state_files 2>/dev/null; then
+        echo "  State repair failed for valid checksummed records"
+        cleanup_test_env
+        return 1
+    fi
+
+    line_count=$(wc -l < "$ACFS_CHANGES_FILE")
+    if [[ "$line_count" -ne 2 ]]; then
+        echo "  Expected 2 checksummed records after repair, got $line_count"
+        cleanup_test_env
+        return 1
+    fi
+
+    if ! grep -F "$record1" "$ACFS_CHANGES_FILE" >/dev/null || ! grep -F "$record2" "$ACFS_CHANGES_FILE" >/dev/null; then
+        echo "  State repair lost a valid checksummed record"
         cleanup_test_env
         return 1
     fi
@@ -2101,6 +2210,8 @@ main() {
 
     run_test test_atomic_write
     run_test test_atomic_append
+    run_test test_write_atomic_preserves_temp_through_fsync_functions
+    run_test test_append_atomic_preserves_temp_through_fsync_functions
     run_test test_fsync_file
     run_test test_fsync_directory
     run_test test_backup_creation
@@ -2121,6 +2232,7 @@ main() {
     run_test test_state_integrity_ignores_missing_backup_for_undone_change
     run_test test_state_integrity_checks_all_active_backups
     run_test test_state_repair
+    run_test test_state_repair_preserves_all_valid_checksummed_records
     run_test test_state_repair_fails_when_changes_rewrite_cannot_replace_file
     run_test test_autofix_globals_are_initialized_under_set_u
     run_test test_autofix_refresh_state_paths_falls_back_to_tmp_when_runtime_home_unresolved

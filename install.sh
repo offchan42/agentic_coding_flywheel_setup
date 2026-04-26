@@ -6757,10 +6757,16 @@ GEMINI_TRUST_EOF
         # mapping folder paths to "TRUST_FOLDER", not a JSON array.
         local gemini_trusted_folders="$TARGET_HOME/.gemini/trustedFolders.json"
         if [[ ! -f "$gemini_trusted_folders" ]]; then
-            run_as_target tee "$gemini_trusted_folders" > /dev/null << GEMINI_FOLDERS_EOF
-{"/data/projects": "TRUST_FOLDER", "$TARGET_HOME": "TRUST_FOLDER"}
-GEMINI_FOLDERS_EOF
-            log_detail "Gemini trusted folders pre-configured"
+            local tmp_folders="${gemini_trusted_folders}.tmp.$$"
+            if run_as_target bash -c '
+                jq -n --arg home "$1" '"'"'{"/data/projects": "TRUST_FOLDER", ($home): "TRUST_FOLDER"}'"'"' > "$2" &&
+                mv "$2" "$3"
+            ' _ "$TARGET_HOME" "$tmp_folders" "$gemini_trusted_folders" 2>/dev/null; then
+                log_detail "Gemini trusted folders pre-configured"
+            else
+                run_as_target rm -f "$tmp_folders" 2>/dev/null || true
+                log_warn "Gemini trusted folders pre-configuration failed"
+            fi
         elif command -v jq &>/dev/null; then
             # Merge paths into existing file, handling both legacy array format
             # and current object format (fixes #213).

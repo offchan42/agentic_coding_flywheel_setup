@@ -6816,6 +6816,19 @@ EOF
     assert_failure
 }
 
+@test "install.sh: Gemini trusted folders creation JSON-escapes target home" {
+    local installer="$PROJECT_ROOT/install.sh"
+
+    run grep -F 'jq -n --arg home "$1"' "$installer"
+    assert_success
+
+    run grep -F '{"/data/projects": "TRUST_FOLDER", ($home): "TRUST_FOLDER"}' "$installer"
+    assert_success
+
+    run grep -F '{"/data/projects": "TRUST_FOLDER", "$TARGET_HOME": "TRUST_FOLDER"}' "$installer"
+    assert_failure
+}
+
 @test "install.sh: resolves target user and shell via trusted helpers" {
     local installer="$PROJECT_ROOT/install.sh"
 

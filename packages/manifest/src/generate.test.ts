@@ -12,6 +12,10 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync, existsSync } from 'node:fs';
 import { parseManifestFile } from './parser.js';
 import {
+  isOptionalVerifyCommand,
+  stripOptionalVerifySuffix,
+} from './generate.js';
+import {
   getCategories,
   getModuleCategory,
   sortModulesByInstallOrder,
@@ -25,6 +29,22 @@ const MANIFEST_PATH = resolve(PROJECT_ROOT, 'acfs.manifest.yaml');
 const GENERATED_DIR = resolve(PROJECT_ROOT, 'scripts/generated');
 const WEB_GENERATED_DIR = resolve(PROJECT_ROOT, 'apps/web/lib/generated');
 const MANIFEST_INDEX_PATH = resolve(GENERATED_DIR, 'manifest_index.sh');
+
+describe('Generator optional verify parsing', () => {
+  test('strips optional true suffixes with trailing comments', () => {
+    const command = 'ms doctor || true # optional until credentials are configured';
+
+    expect(isOptionalVerifyCommand(command)).toBe(true);
+    expect(stripOptionalVerifySuffix(command)).toBe('ms doctor');
+  });
+
+  test('leaves non-optional commands unchanged', () => {
+    const command = 'if tool --version; then true; fi';
+
+    expect(isOptionalVerifyCommand(command)).toBe(false);
+    expect(stripOptionalVerifySuffix(command)).toBe(command);
+  });
+});
 
 describe('Generated manifest_index.sh content', () => {
   let manifestIndexContent: string;

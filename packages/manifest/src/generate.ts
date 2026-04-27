@@ -11,7 +11,7 @@
 import { createHash } from 'node:crypto';
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { parseManifestFile, validateManifestData } from './parser.js';
 import {
@@ -540,6 +540,16 @@ function encodeDoctorCommand(cmd: string): string {
     .replace(/\\/g, '\\\\')
     .replace(/\t/g, '\\t')
     .replace(/\r?\n/g, '\\n');
+}
+
+const OPTIONAL_VERIFY_TRUE_SUFFIX = /\s*\|\|\s*true\s*(?:#.*)?$/;
+
+export function isOptionalVerifyCommand(command: string): boolean {
+  return OPTIONAL_VERIFY_TRUE_SUFFIX.test(command);
+}
+
+export function stripOptionalVerifySuffix(command: string): string {
+  return command.replace(OPTIONAL_VERIFY_TRUE_SUFFIX, '').trim();
 }
 
 /**
@@ -1435,9 +1445,8 @@ function generateVerifyCommands(module: Module): string[] {
   for (const cmd of module.verify) {
     // Skip commands with || true at the end for required checks
     // Regex matches: optional whitespace, ||, optional whitespace, true, optional whitespace, optional comment, end of string
-    const optionalRegex = /\s*\|\|\s*true\s*(#.*)?$/;
-    const isOptional = optionalRegex.test(cmd);
-    const cleanCmd = cmd.replace(optionalRegex, '').trim();
+    const isOptional = isOptionalVerifyCommand(cmd);
+    const cleanCmd = stripOptionalVerifySuffix(cmd);
 
     const blockLines = cleanCmd.includes('\n') || cleanCmd.startsWith('|')
       ? cleanCmd.replace(/^\|?\n?/, '').trim().split('\n')
@@ -1700,8 +1709,8 @@ function generateDoctorChecks(manifest: Manifest): string {
     for (let i = 0; i < module.verify.length; i++) {
       const verify = module.verify[i];
       // Module is optional if: the module itself is marked optional OR the command ends with || true
-      const isOptional = module.optional || /\|\|\s*true\s*(#.*)?$/.test(verify);
-      const cleanCmd = verify.replace(/\s*\|\|\s*true\s*$/, '').trim();
+      const isOptional = module.optional || isOptionalVerifyCommand(verify);
+      const cleanCmd = stripOptionalVerifySuffix(verify);
       const suffix = module.verify.length > 1 ? `.${i + 1}` : '';
       const description = escapeBash(module.description);
       const encodedCmd = encodeDoctorCommand(cleanCmd);
@@ -2544,7 +2553,15 @@ async function main(): Promise<void> {
   console.log(`Generated ${generatedFiles.length} files (${OUTPUT_DIR} + ${WEB_OUTPUT_DIR})`);
 }
 
-main().catch((err) => {
-  console.error('Generator failed:', err);
-  process.exit(1);
-});
+function isDirectInvocation(): boolean {
+  const scriptArg = process.argv[1];
+  if (!scriptArg) return false;
+  return import.meta.url === pathToFileURL(resolve(scriptArg)).href;
+}
+
+if (isDirectInvocation()) {
+  main().catch((err) => {
+    console.error('Generator failed:', err);
+    process.exit(1);
+  });
+}

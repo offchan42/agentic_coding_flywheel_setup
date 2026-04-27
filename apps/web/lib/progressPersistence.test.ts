@@ -10,6 +10,7 @@ import {
   canAccessWizardStep,
   COMPLETED_STEPS_CHANGED_EVENT,
   COMPLETED_STEPS_KEY,
+  getCompletedSteps,
   getNextReachableWizardStep,
   markStepComplete,
   setCompletedSteps,
@@ -100,7 +101,7 @@ describe("progress persistence guards", () => {
 
   test("setCompletedSteps only emits when persistence succeeds", () => {
     const successBrowser = installMockBrowser();
-    expect(setCompletedSteps([3, 1, 1, 2])).toBe(true);
+    expect(setCompletedSteps([3, 1, 1, 2, 2.5])).toBe(true);
     expect(successBrowser.getStoredValue(COMPLETED_STEPS_KEY)).toBe("[1,2,3]");
     expect(
       successBrowser.dispatchCalls.some(
@@ -118,6 +119,21 @@ describe("progress persistence guards", () => {
         (event) => event.type === COMPLETED_STEPS_CHANGED_EVENT
       )
     ).toBe(false);
+  });
+
+  test("wizard progress ignores fractional stored step ids", () => {
+    const browser = installMockBrowser({
+      initialValues: {
+        [COMPLETED_STEPS_KEY]: JSON.stringify([1, 2, 2.5, 3]),
+      },
+    });
+
+    expect(getCompletedSteps()).toEqual([1, 2, 3]);
+    expect(getNextReachableWizardStep(getCompletedSteps()).id).toBe(4);
+    expect(canAccessWizardStep(getCompletedSteps(), 4)).toBe(true);
+
+    expect(markStepComplete(4)).toEqual([1, 2, 3, 4]);
+    expect(browser.getStoredValue(COMPLETED_STEPS_KEY)).toBe("[1,2,3,4]");
   });
 
   test("wizard step access follows contiguous completion", () => {

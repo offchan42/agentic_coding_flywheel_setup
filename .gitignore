@@ -33,6 +33,10 @@ bun.lockb
 # ----- IDE & Editor -----
 .idea/
 .vscode/
+# Repo-scoped Codex rules are source files; many agents ignore ~/.codex globally.
+!.codex/
+!.codex/rules/
+!.codex/rules/ubs.md
 *.swp
 *.swo
 *~

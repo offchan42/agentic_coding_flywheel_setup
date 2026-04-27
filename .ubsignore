@@ -6,14 +6,25 @@
 # Dependencies / vendored
 node_modules/
 apps/web/node_modules/
+apps/web/node_modules_trash_latest_*/
 packages/**/node_modules/
 
-# Next.js build output
-apps/web/.next/
+# Build outputs / local caches
+dist/
+build/
+out/
+target/
+.git/
+apps/web/.next*/
+apps/web/.eslintcache*
+*.tsbuildinfo
 
 # Research scripts (Playwright $$eval triggers UBS eval heuristics)
 apps/web/research_*.mjs
 apps/web/scripts/research/legacy-*.mjs
+apps/web/check-site.mjs
+apps/web/debug-site.mjs
+apps/web/test-mobile.ts
 
 # Generator embeds shell scripts in template strings (UBS JS heuristics produce false positives)
 packages/manifest/src/generate.ts
@@ -25,7 +36,35 @@ packages/manifest/src/generate.ts
 # Playwright artifacts
 apps/web/playwright-report/
 apps/web/test-results/
+apps/web/mobile-screenshots/
+research_screenshots/
+tests/artifacts/
+tests/logs/
+logs/
+**/logs/
 
-# Vercel metadata
+# Local runtime state / tool metadata
+.beads/.br_history/
+.beads/*.db*
+.beads/interactions.jsonl
+.beads/*.lock
+.beads/last-touched
+.beads/sync_base.jsonl
+apps/**/.beads/
+packages/**/.beads/
+tests/**/.beads/
+.env
+.env.*
+.agent-mail-project-id
+.agent-mail.yaml
+.claude/settings.local.json
+.ntm/
+.slb/
+.vercel/
 apps/web/.vercel/
 packages/onboard/.vercel/
+
+# Stray local tool outputs
+--graph-format*
+core
+core.*

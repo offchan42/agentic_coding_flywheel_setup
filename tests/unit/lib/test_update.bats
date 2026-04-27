@@ -7987,6 +7987,7 @@ EOF
     assert_output --partial "--mode vibe"
     refute_output --partial "ACFS_REF="
     refute_output --partial "touch /tmp/acfs-pwned"
+    refute_output --partial "--ref"
 
     cat > "$fixture_state_file" <<'EOF'
 {
@@ -7997,7 +7998,20 @@ EOF
     ACFS_MODE="safe"
     run build_fix_suggestion "stack.ntm"
     assert_success
-    assert_output --partial "ACFS_REF=abc1234 bash -s -- --yes --force-reinstall --mode safe --only stack.ntm"
+    assert_output --partial "https://raw.githubusercontent.com/Dicklesworthstone/agentic_coding_flywheel_setup/abc1234/install.sh"
+    assert_output --partial "bash -s -- --yes --force-reinstall --mode safe --only stack.ntm --ref abc1234"
+    refute_output --partial "ACFS_REF="
+
+    cat > "$fixture_state_file" <<'EOF'
+{
+  "pinned_ref": "-bad-ref"
+}
+EOF
+
+    run build_fix_suggestion "stack.ntm"
+    assert_success
+    assert_output --partial "curl -fsSL https://agent-flywheel.com/install | bash -s --"
+    refute_output --partial "--ref"
 }
 
 @test "doctor.sh: passwd target home repairs stale inherited TARGET_HOME" {

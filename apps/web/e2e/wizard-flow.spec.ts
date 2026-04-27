@@ -845,6 +845,7 @@ test.describe("Step 9: Run Installer Page", () => {
     const commandElement = page.locator('code').filter({ hasText: 'curl -fsSL' }).first();
     const defaultCommand = await commandElement.textContent();
     expect(defaultCommand).not.toContain('ACFS_REF=');
+    expect(defaultCommand).not.toContain('--ref');
 
     // Enable pinning and set a custom ref
     await page.locator('#pin-ref').click();
@@ -853,8 +854,8 @@ test.describe("Step 9: Run Installer Page", () => {
     await refInput.fill("v1.2.3");
     await refInput.blur();
 
-    // Command should now include ACFS_REF
-    await expect(commandElement).toContainText('ACFS_REF="v1.2.3"');
+    // Command should now include the pinned ref as an installer argument
+    await expect(commandElement).toContainText('--ref "v1.2.3"');
     await expect(commandElement).toContainText('v1.2.3/install.sh');
   });
 
@@ -871,7 +872,7 @@ test.describe("Step 9: Run Installer Page", () => {
 
     // Command should include the SHA
     const commandElement = page.locator('code').filter({ hasText: 'curl -fsSL' }).first();
-    await expect(commandElement).toContainText('ACFS_REF="abc123def456"');
+    await expect(commandElement).toContainText('--ref "abc123def456"');
     await expect(commandElement).toContainText('abc123def456/install.sh');
   });
 
@@ -888,13 +889,14 @@ test.describe("Step 9: Run Installer Page", () => {
 
     // Verify pinned command
     const commandElement = page.locator('code').filter({ hasText: 'curl -fsSL' }).first();
-    await expect(commandElement).toContainText('ACFS_REF="custom-ref"');
+    await expect(commandElement).toContainText('--ref "custom-ref"');
 
     // Disable pinning
     await page.locator('#pin-ref').click();
 
-    // Command should no longer include ACFS_REF
+    // Command should no longer include the pinned ref argument
     await expect(commandElement).not.toContainText('ACFS_REF=');
+    await expect(commandElement).not.toContainText('--ref');
   });
 
 });
@@ -1665,7 +1667,7 @@ test.describe("Command Builder Panel", () => {
     await expect(page.locator('code').filter({ hasText: 'devuser@192.168.1.100' }).first()).toBeVisible();
   });
 
-  test("should include ACFS_REF in installer command when ref is set", async ({ page }) => {
+  test("should include --ref in installer command when ref is set", async ({ page }) => {
     await page.goto("/wizard/launch-onboarding");
     await page.waitForLoadState("domcontentloaded");
 
@@ -1678,9 +1680,9 @@ test.describe("Command Builder Panel", () => {
     await refInput.fill("v1.0.0");
     await refInput.blur();
 
-    // Installer command should include the SHA
+    // Installer command should include the pinned ref
     const commandElement = page.locator('code').filter({ hasText: 'curl -fsSL' }).first();
-    await expect(commandElement).toContainText('ACFS_REF="v1.0.0"');
+    await expect(commandElement).toContainText('--ref "v1.0.0"');
     await expect(commandElement).toContainText('v1.0.0/install.sh');
   });
 

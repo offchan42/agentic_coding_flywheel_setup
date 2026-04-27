@@ -94,11 +94,22 @@ _acfs_doctor_normalize_ref() {
     local ref="${1:-}"
 
     [[ -n "$ref" ]] || return 1
+    ((${#ref} <= 120)) || return 1
     [[ "$ref" =~ ^[A-Za-z0-9._/-]+$ ]] || return 1
+    [[ "$ref" != "-"* ]] || return 1
+    [[ "$ref" != "@" ]] || return 1
+    [[ "$ref" != "." ]] || return 1
+    [[ "$ref" != ".." ]] || return 1
+    [[ "$ref" != "."* ]] || return 1
+    [[ "$ref" != *"." ]] || return 1
     [[ "$ref" != /* ]] || return 1
     [[ "$ref" != */ ]] || return 1
+    [[ "$ref" != *//* ]] || return 1
+    [[ "$ref" != */.* ]] || return 1
     [[ "$ref" != *..* ]] || return 1
     [[ "$ref" != *@\{* ]] || return 1
+    [[ "$ref" != ".lock" ]] || return 1
+    [[ "$ref" != *.lock ]] || return 1
     printf '%s\n' "$ref"
 }
 
@@ -794,7 +805,8 @@ build_fix_suggestion() {
     done
 
     # Base URL
-    local base_url="https://agent-flywheel.com/install"
+    local install_url="https://agent-flywheel.com/install"
+    local install_url_q=""
 
     # Build flags based on current state
     local flags=""
@@ -811,26 +823,26 @@ build_fix_suggestion() {
     elif [[ -n "$module_id" ]]; then
         flag_args+=(--only "$module_id")
     fi
-    printf -v flags '%q ' "${flag_args[@]}"
-    flags="${flags% }"
 
     # Build the command
     # Check if we have a pinned ref from state.json
-    local ref_env=""
     local state_file=""
     state_file="$(_acfs_doctor_find_project_path "state.json" 2>/dev/null || true)"
     if [[ -f "$state_file" ]]; then
         local pinned_ref=""
-        local pinned_ref_q=""
         pinned_ref="$(_acfs_doctor_read_json_string_key "$state_file" "pinned_ref" 2>/dev/null || true)"
         pinned_ref="$(_acfs_doctor_normalize_ref "$pinned_ref" 2>/dev/null || true)"
         if [[ -n "$pinned_ref" && "$pinned_ref" != "main" ]]; then
-            printf -v pinned_ref_q '%q' "$pinned_ref"
-            ref_env="ACFS_REF=$pinned_ref_q "
+            install_url="https://raw.githubusercontent.com/Dicklesworthstone/agentic_coding_flywheel_setup/${pinned_ref}/install.sh"
+            flag_args+=(--ref "$pinned_ref")
         fi
     fi
 
-    echo "curl -fsSL $base_url | ${ref_env}bash -s -- $flags"
+    printf -v flags '%q ' "${flag_args[@]}"
+    flags="${flags% }"
+    printf -v install_url_q '%q' "$install_url"
+
+    echo "curl -fsSL $install_url_q | bash -s -- $flags"
 }
 
 # Shorthand for common fix patterns

@@ -17,6 +17,13 @@ describe("buildInstallCommand", () => {
     expect(command).toContain("/v1.2.3/install.sh");
     expect(command).toContain("--mode safe");
   });
+
+  test("omits TARGET_USER when the username does not match the installer contract", () => {
+    const command = buildInstallCommand("vibe", null, "Admin");
+
+    expect(command).not.toContain("TARGET_USER=");
+    expect(command).not.toContain("Admin");
+  });
 });
 
 describe("buildCommands", () => {
@@ -53,6 +60,23 @@ describe("buildCommands", () => {
     expect(sshUser?.label).toBe("SSH as ubuntu");
     expect(sshUser?.command).toContain("ubuntu@10.20.30.40");
   });
+
+  test("accepts lowercase usernames with dots and hyphens", () => {
+    const commands = buildCommands({
+      ip: "10.20.30.40",
+      os: "linux",
+      username: "dev-user.1",
+      mode: "vibe",
+      ref: null,
+    });
+
+    const installer = commands.find((command) => command.id === "installer");
+    const sshUser = commands.find((command) => command.id === "ssh-user");
+
+    expect(installer?.command).toContain('TARGET_USER="dev-user.1"');
+    expect(sshUser?.label).toBe("SSH as dev-user.1");
+    expect(sshUser?.command).toContain("dev-user.1@10.20.30.40");
+  });
 });
 
 describe("buildShareURL", () => {
@@ -81,6 +105,38 @@ describe("buildShareURL", () => {
 
       expect(shareURL).toBe("https://acfs.dev/wizard/launch-onboarding?ip=10.20.30.40&os=mac&mode=vibe");
       expect(shareURL).not.toContain("utm_source=");
+    } finally {
+      Object.defineProperty(globalThis, "window", {
+        value: originalWindow,
+        configurable: true,
+      });
+    }
+  });
+
+  test("drops usernames that the installer would reject", () => {
+    const originalWindow = globalThis.window;
+
+    Object.defineProperty(globalThis, "window", {
+      value: {
+        location: {
+          href: "https://acfs.dev/wizard/launch-onboarding",
+          origin: "https://acfs.dev",
+          pathname: "/wizard/launch-onboarding",
+        },
+      },
+      configurable: true,
+    });
+
+    try {
+      const shareURL = buildShareURL({
+        ip: "10.20.30.40",
+        os: "linux",
+        username: "Admin",
+        mode: "safe",
+        ref: null,
+      });
+
+      expect(shareURL).toBe("https://acfs.dev/wizard/launch-onboarding?ip=10.20.30.40&os=linux&mode=safe");
     } finally {
       Object.defineProperty(globalThis, "window", {
         value: originalWindow,

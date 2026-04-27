@@ -27,6 +27,7 @@ const SSH_USERNAME_QUERY_KEY = "user";
 const ACFS_REF_QUERY_KEY = "ref";
 const MAX_GIT_REF_LENGTH = 120;
 const GIT_REF_SAFE_PATTERN = /^[A-Za-z0-9._/-]+$/;
+const SSH_USERNAME_PATTERN = /^[a-z_][a-z0-9._-]*$/;
 const USER_PREFERENCES_EVENT = "acfs:user-preferences-updated";
 
 function normalizeStringList(values: unknown): string[] {
@@ -109,6 +110,13 @@ export function normalizeGitRef(ref: string | null | undefined): string | null {
   if (value.includes("..")) return null;
   if (value.includes("@{")) return null;
   if (value === ".lock" || value.endsWith(".lock")) return null;
+  return value;
+}
+
+export function normalizeSSHUsername(username: string | null | undefined): string | null {
+  const value = username?.trim() ?? "";
+  if (!value) return null;
+  if (!SSH_USERNAME_PATTERN.test(value)) return null;
   return value;
 }
 
@@ -441,18 +449,18 @@ export function useInstallMode(): [InstallMode, (mode: InstallMode) => void, boo
 // --- SSH Username ---
 
 export function getSSHUsername(): string {
-  const fromQuery = getQueryParam(SSH_USERNAME_QUERY_KEY);
-  if (fromQuery && /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(fromQuery)) return fromQuery;
-  const stored = safeGetItem(SSH_USERNAME_KEY);
-  if (stored && /^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(stored)) return stored;
+  const fromQuery = normalizeSSHUsername(getQueryParam(SSH_USERNAME_QUERY_KEY));
+  if (fromQuery) return fromQuery;
+  const stored = normalizeSSHUsername(safeGetItem(SSH_USERNAME_KEY));
+  if (stored) return stored;
   return "ubuntu";
 }
 
 export function setSSHUsername(username: string): boolean {
-  const trimmed = username.trim();
-  if (!trimmed || !/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(trimmed)) return false;
-  const storedOk = safeSetItem(SSH_USERNAME_KEY, trimmed);
-  const urlOk = setQueryParam(SSH_USERNAME_QUERY_KEY, trimmed === "ubuntu" ? null : trimmed);
+  const normalized = normalizeSSHUsername(username);
+  if (!normalized) return false;
+  const storedOk = safeSetItem(SSH_USERNAME_KEY, normalized);
+  const urlOk = setQueryParam(SSH_USERNAME_QUERY_KEY, normalized === "ubuntu" ? null : normalized);
   if (storedOk || urlOk) {
     emitUserPreferencesUpdate();
   }

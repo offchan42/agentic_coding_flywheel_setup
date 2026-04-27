@@ -21,11 +21,10 @@ import {
   useACFSRef,
   isValidIP,
   normalizeGitRef,
+  normalizeSSHUsername,
   type InstallMode,
 } from "@/lib/userPreferences";
 import { buildCommands, buildShareURL } from "@/lib/commandBuilder";
-
-const SSH_USERNAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_-]*$/;
 
 function LocationBadge({ location }: { location: "local" | "vps" }) {
   return (
@@ -185,8 +184,8 @@ export function CommandBuilderPanel() {
   const usernameError = useMemo(() => {
     const trimmed = usernameDraft.trim();
     if (!trimmed) return "Enter a Linux username such as ubuntu or devuser.";
-    if (SSH_USERNAME_PATTERN.test(trimmed)) return null;
-    return "Use letters, numbers, underscores, or hyphens, and start with a letter or underscore.";
+    if (normalizeSSHUsername(trimmed)) return null;
+    return "Use lowercase letters, numbers, dots, underscores, or hyphens, and start with a lowercase letter or underscore.";
   }, [usernameDraft]);
   const effectiveUsername = useMemo(() => {
     const trimmed = usernameDraft.trim();
@@ -267,14 +266,15 @@ export function CommandBuilderPanel() {
 
   const commitUsernameDraft = useCallback(() => {
     const trimmed = usernameDraft.trim();
-    if (!trimmed || !SSH_USERNAME_PATTERN.test(trimmed)) {
+    const normalized = normalizeSSHUsername(trimmed);
+    if (!normalized) {
       setUsernameDraft(username);
       return;
     }
 
-    setUsernameDraft(trimmed);
-    if (trimmed !== username) {
-      setUsername(trimmed);
+    setUsernameDraft(normalized);
+    if (normalized !== username) {
+      setUsername(normalized);
     }
   }, [username, usernameDraft, setUsername]);
 

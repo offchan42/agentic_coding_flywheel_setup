@@ -8,7 +8,7 @@
  */
 
 import type { OperatingSystem, InstallMode } from "./userPreferences";
-import { normalizeGitRef } from "./userPreferences";
+import { normalizeGitRef, normalizeSSHUsername } from "./userPreferences";
 
 const INSTALL_SCRIPT_BASE_URL =
   "https://raw.githubusercontent.com/Dicklesworthstone/agentic_coding_flywheel_setup";
@@ -57,13 +57,12 @@ export function formatSshTarget(username: string, host: string): string {
 }
 
 function normalizeInstallUsername(username: string | null | undefined): string | null {
-  const trimmed = username?.trim() ?? "";
-  if (!trimmed || trimmed === "ubuntu") return null;
-  if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(trimmed)) return null;
-  return trimmed;
+  const normalized = normalizeSSHUsername(username);
+  if (!normalized || normalized === "ubuntu") return null;
+  return normalized;
 }
 
-function normalizeSshUsername(username: string | null | undefined): string {
+function normalizeCommandUsername(username: string | null | undefined): string {
   return normalizeInstallUsername(username) ?? "ubuntu";
 }
 
@@ -90,7 +89,7 @@ export function buildCommands(inputs: CommandBuilderInputs): GeneratedCommand[] 
   const keyPath = sshKeyPath();
   const keyPathWin = sshKeyPathWindows();
   const safeRef = normalizeGitRef(ref);
-  const safeUsername = normalizeSshUsername(username);
+  const safeUsername = normalizeCommandUsername(username);
   const rootTarget = formatSshTarget("root", ip);
   const userTarget = formatSshTarget(safeUsername, ip);
 
@@ -152,7 +151,7 @@ export function buildCommands(inputs: CommandBuilderInputs): GeneratedCommand[] 
 export function buildShareURL(inputs: CommandBuilderInputs): string {
   if (typeof window === "undefined") return "";
   const url = new URL(window.location.pathname, window.location.origin);
-  const safeUsername = normalizeSshUsername(inputs.username);
+  const safeUsername = normalizeCommandUsername(inputs.username);
   url.searchParams.set("ip", inputs.ip);
   url.searchParams.set("os", inputs.os);
   if (safeUsername !== "ubuntu") {

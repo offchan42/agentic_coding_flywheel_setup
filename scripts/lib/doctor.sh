@@ -3556,14 +3556,15 @@ check_postgres_role() {
         return  # Already reported in connection check
     fi
 
-    # Validate target user - PostgreSQL identifiers must match this pattern
-    # SECURITY: Prevents SQL injection by validating input before use
+    # Validate target user with the same contract the installer uses. ACFS
+    # target users may contain dots/hyphens; the SQL below compares a string
+    # literal after this validation, not an unquoted PostgreSQL identifier.
     local target_user="${TARGET_USER:-}"
     if [[ -z "$target_user" ]]; then
         check "deep.db.postgres_role" "PostgreSQL role check" "warn" "TARGET_USER not set"
         return
     fi
-    if [[ ! "$target_user" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+    if [[ ! "$target_user" =~ ^[a-z_][a-z0-9._-]*$ ]]; then
         check "deep.db.postgres_role" "PostgreSQL role check" "fail" "invalid username format"
         return
     fi

@@ -62,10 +62,10 @@ If that works well for you, the larger Flywheel stack becomes much easier to app
 
 If you want the shortest useful reading path:
 
-1. read [Tool Boundary](/data/projects/THE_FLYWHEEL_CORE_LOOP.md#tool-boundary), [Five Terms You Need Before Continuing](/data/projects/THE_FLYWHEEL_CORE_LOOP.md#five-terms-you-need-before-continuing), and [The Core Idea](/data/projects/THE_FLYWHEEL_CORE_LOOP.md#the-core-idea)
-2. read the example cluster: [One Concrete Example](/data/projects/THE_FLYWHEEL_CORE_LOOP.md#one-concrete-example), [Sample Artifact Packet](/data/projects/THE_FLYWHEEL_CORE_LOOP.md#sample-artifact-packet), [Annotated First Run](/data/projects/THE_FLYWHEEL_CORE_LOOP.md#annotated-first-run), and [Literal First Session Transcript](/data/projects/THE_FLYWHEEL_CORE_LOOP.md#literal-first-session-transcript)
+1. read [Tool Boundary](#tool-boundary), [Five Terms You Need Before Continuing](#five-terms-you-need-before-continuing), and [The Core Idea](#the-core-idea)
+2. read the example cluster: [One Concrete Example](#one-concrete-example), [Sample Artifact Packet](#sample-artifact-packet), [Annotated First Run](#annotated-first-run), and [Literal First Session Transcript](#literal-first-session-transcript)
 3. try one tiny real run
-4. come back for [Common Failure Modes](/data/projects/THE_FLYWHEEL_CORE_LOOP.md#common-failure-modes) and the [Appendix: Cheat Card](/data/projects/THE_FLYWHEEL_CORE_LOOP.md#appendix-cheat-card)
+4. come back for [Common Failure Modes](#common-failure-modes) and the [Appendix: Cheat Card](#appendix-cheat-card)
 
 That path gets you oriented first, operational second, and diagnostic third.
 
@@ -1287,5 +1287,5 @@ That sequence is not the whole philosophy. It is the smallest cheat card that st
 
 ## Where to Go Next
 
-- For the exhaustive version of the methodology, see [THE_FLYWHEEL_APPROACH_TO_PLANNING_AND_BEADS_CREATION.md](/data/projects/THE_FLYWHEEL_APPROACH_TO_PLANNING_AND_BEADS_CREATION.md).
+- For the exhaustive version of the methodology, see [THE_FLYWHEEL_APPROACH_TO_PLANNING_AND_BEADS_CREATION.md](./THE_FLYWHEEL_APPROACH_TO_PLANNING_AND_BEADS_CREATION.md).
 - If you already believe in the core loop, the next things worth adding are a stronger `AGENTS.md`, better planning habits, and a small set of battle-tested prompts.

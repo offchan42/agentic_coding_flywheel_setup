@@ -131,6 +131,8 @@ try_step() {
     output_file=$(mktemp "${TMPDIR:-/tmp}/acfs_step.XXXXXX" 2>/dev/null) || output_file=""
 
     local exit_code=0
+    local had_errexit=false
+    [[ $- == *e* ]] && had_errexit=true
 
     # Execute command with output capture
     # We use process substitution to capture both stdout and stderr
@@ -150,7 +152,11 @@ try_step() {
                 set +e
                 "$@" > "$fifo" 2>&1
                 exit_code=$?
-                set -e
+                if [[ "$had_errexit" == "true" ]]; then
+                    set -e
+                else
+                    set +e
+                fi
                 
                 # Wait for tee to drain and exit, then clean up the FIFO.
                 # The command's exit already closed the write end of the FIFO,
@@ -162,14 +168,22 @@ try_step() {
                 set +e
                 "$@" 2>&1 | tee "$output_file"
                 exit_code="${PIPESTATUS[0]}"
-                set -e
+                if [[ "$had_errexit" == "true" ]]; then
+                    set -e
+                else
+                    set +e
+                fi
             fi
         else
             # Normal mode: capture silently, show on error
             set +e
             "$@" > "$output_file" 2>&1
             exit_code=$?
-            set -e
+            if [[ "$had_errexit" == "true" ]]; then
+                set -e
+            else
+                set +e
+            fi
         fi
     else
         # If we cannot safely create a temp file, run without capture rather than

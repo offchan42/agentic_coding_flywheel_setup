@@ -32,3 +32,25 @@ teardown() {
     assert_success
     assert_output --partial "atuin"
 }
+
+@test "try_step preserves caller errexit-off state" {
+    run env -i PATH="/usr/bin:/bin" bash -c '
+        set +e
+        source "$1"
+        before=$-
+        try_step "successful command" true >/dev/null 2>&1
+        after_success=$-
+        status=0
+        try_step "failing command" false >/dev/null 2>&1 || status=$?
+        after_failure=$-
+        [[ "$after_success" != *e* ]] || exit 2
+        [[ "$after_failure" != *e* ]] || exit 3
+        printf "status=%s\nbefore=%s\nafter_success=%s\nafter_failure=%s\n" \
+            "$status" "$before" "$after_success" "$after_failure"
+    ' _ "$PROJECT_ROOT/scripts/lib/error_tracking.sh"
+
+    assert_success
+    assert_output --partial "status=1"
+    assert_output --partial "after_success="
+    assert_output --partial "after_failure="
+}

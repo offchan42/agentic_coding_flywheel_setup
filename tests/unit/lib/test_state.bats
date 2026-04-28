@@ -99,6 +99,140 @@ teardown() {
     assert_failure # Returns 1 (false)
 }
 
+@test "state: --only dependency closure runs dependency phases" {
+    state_init
+
+    # shellcheck source=../../../scripts/generated/manifest_index.sh
+    source "$PROJECT_ROOT/scripts/generated/manifest_index.sh"
+    ACFS_MANIFEST_INDEX_LOADED=true
+    source_lib "install_helpers"
+
+    ONLY_MODULES=("stack.ntm")
+    ONLY_PHASES=()
+    SKIP_MODULES=()
+    NO_DEPS=false
+
+    acfs_resolve_selection || {
+        echo "acfs_resolve_selection failed"
+        return 1
+    }
+    [[ " ${ACFS_EFFECTIVE_PLAN[*]} " == *" base.system "* ]] || {
+        echo "base.system missing from effective plan"
+        return 1
+    }
+    [[ " ${ACFS_EFFECTIVE_PLAN[*]} " == *" cli.modern "* ]] || {
+        echo "cli.modern missing from effective plan"
+        return 1
+    }
+    [[ " ${ACFS_EFFECTIVE_PLAN[*]} " == *" stack.ntm "* ]] || {
+        echo "stack.ntm missing from effective plan"
+        return 1
+    }
+
+    run state_should_skip_phase "user_setup"
+    assert_failure
+
+    run state_should_skip_phase "cli_tools"
+    assert_failure
+
+    run state_should_skip_phase "stack"
+    assert_failure
+
+    run state_should_skip_phase "languages"
+    assert_success
+}
+
+@test "state: --only-phase dependency closure runs dependency phases" {
+    state_init
+
+    # shellcheck source=../../../scripts/generated/manifest_index.sh
+    source "$PROJECT_ROOT/scripts/generated/manifest_index.sh"
+    ACFS_MANIFEST_INDEX_LOADED=true
+    source_lib "install_helpers"
+
+    ONLY_MODULES=()
+    ONLY_PHASES=("stack")
+    SKIP_MODULES=()
+    NO_DEPS=false
+
+    acfs_resolve_selection || {
+        echo "acfs_resolve_selection failed"
+        return 1
+    }
+    [[ " ${ACFS_EFFECTIVE_PLAN[*]} " == *" stack.ntm "* ]] || {
+        echo "stack.ntm missing from effective plan"
+        return 1
+    }
+    [[ " ${ACFS_EFFECTIVE_PLAN[*]} " == *" lang.bun "* ]] || {
+        echo "lang.bun missing from effective plan"
+        return 1
+    }
+    [[ " ${ACFS_EFFECTIVE_PLAN[*]} " == *" agents.claude "* ]] || {
+        echo "agents.claude missing from effective plan"
+        return 1
+    }
+
+    run state_should_skip_phase "user_setup"
+    assert_failure
+
+    run state_should_skip_phase "languages"
+    assert_failure
+
+    run state_should_skip_phase "agents"
+    assert_failure
+
+    run state_should_skip_phase "stack"
+    assert_failure
+}
+
+@test "state: selected dependency phase reruns even if completed" {
+    state_init
+    state_phase_complete "cli_tools"
+
+    # shellcheck source=../../../scripts/generated/manifest_index.sh
+    source "$PROJECT_ROOT/scripts/generated/manifest_index.sh"
+    ACFS_MANIFEST_INDEX_LOADED=true
+    source_lib "install_helpers"
+
+    ONLY_MODULES=("stack.ntm")
+    ONLY_PHASES=()
+    SKIP_MODULES=()
+    NO_DEPS=false
+
+    acfs_resolve_selection || {
+        echo "acfs_resolve_selection failed"
+        return 1
+    }
+
+    run state_should_skip_phase "cli_tools"
+    assert_failure
+}
+
+@test "state: completed phase remains skipped without targeted selection" {
+    state_init
+    state_phase_complete "cli_tools"
+
+    # A default install may have a populated effective plan during resume; that
+    # must not force completed phases to run unless --only/--only-phase is active.
+    # shellcheck source=../../../scripts/generated/manifest_index.sh
+    source "$PROJECT_ROOT/scripts/generated/manifest_index.sh"
+    ACFS_MANIFEST_INDEX_LOADED=true
+    source_lib "install_helpers"
+
+    ONLY_MODULES=()
+    ONLY_PHASES=()
+    SKIP_MODULES=()
+    NO_DEPS=false
+
+    acfs_resolve_selection || {
+        echo "acfs_resolve_selection failed"
+        return 1
+    }
+
+    run state_should_skip_phase "cli_tools"
+    assert_success
+}
+
 @test "state: update atomic" {
     state_init
     

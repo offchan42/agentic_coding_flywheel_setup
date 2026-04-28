@@ -2051,6 +2051,74 @@ state_is_phase_completed() {
 # Check if a phase should be skipped
 # Usage: state_should_skip_phase <phase_id>
 # Returns: 0 if should skip, 1 if should run
+state_manifest_phase_to_id() {
+    case "${1:-}" in
+        1|2) printf '%s\n' "user_setup" ;;
+        3) printf '%s\n' "filesystem" ;;
+        4) printf '%s\n' "shell_setup" ;;
+        5) printf '%s\n' "cli_tools" ;;
+        6) printf '%s\n' "languages" ;;
+        7) printf '%s\n' "agents" ;;
+        8) printf '%s\n' "cloud_db" ;;
+        9) printf '%s\n' "stack" ;;
+        10) printf '%s\n' "finalize" ;;
+        *) return 1 ;;
+    esac
+}
+
+state_selection_includes_phase() {
+    local phase_id="$1"
+    local module=""
+    local module_phase_num=""
+    local module_phase_name=""
+    local target_phase=""
+    local target_phase_name=""
+
+    if [[ "${ACFS_EFFECTIVE_PLAN+x}" == "x" ]]; then
+        if [[ ${#ACFS_EFFECTIVE_PLAN[@]} -gt 0 ]]; then
+            for module in "${ACFS_EFFECTIVE_PLAN[@]}"; do
+                module_phase_num="${ACFS_MODULE_PHASE[$module]:-}"
+                module_phase_name="$(state_manifest_phase_to_id "$module_phase_num" 2>/dev/null || true)"
+                if [[ "$module_phase_name" == "$phase_id" ]]; then
+                    return 0
+                fi
+            done
+            return 1
+        fi
+    fi
+
+    if [[ "${ONLY_MODULES+x}" == "x" ]] && [[ ${#ONLY_MODULES[@]} -gt 0 ]]; then
+        for module in "${ONLY_MODULES[@]}"; do
+            module_phase_num="${ACFS_MODULE_PHASE[$module]:-}"
+            module_phase_name="$(state_manifest_phase_to_id "$module_phase_num" 2>/dev/null || true)"
+            if [[ "$module_phase_name" == "$phase_id" ]]; then
+                return 0
+            fi
+        done
+    fi
+
+    if [[ "${ONLY_PHASES+x}" == "x" ]] && [[ ${#ONLY_PHASES[@]} -gt 0 ]]; then
+        for target_phase in "${ONLY_PHASES[@]}"; do
+            target_phase_name="$(state_manifest_phase_to_id "$target_phase" 2>/dev/null || true)"
+            if [[ "$target_phase_name" == "$phase_id" ]]; then
+                return 0
+            fi
+        done
+    fi
+
+    return 1
+}
+
+state_has_module_selection() {
+    if [[ "${ONLY_MODULES+x}" == "x" ]] && [[ ${#ONLY_MODULES[@]} -gt 0 ]]; then
+        return 0
+    fi
+    if [[ "${ONLY_PHASES+x}" == "x" ]] && [[ ${#ONLY_PHASES[@]} -gt 0 ]]; then
+        return 0
+    fi
+    return 1
+}
+
 state_should_skip_phase() {
     local phase_id="$1"
 
@@ -2059,48 +2127,8 @@ state_should_skip_phase() {
         # Bug #213: When --only selects a module whose parent phase is already
         # completed, the phase must re-run so the module installer can execute.
         # Check whether any requested module belongs to this phase.
-        if [[ "${ONLY_MODULES+x}" == "x" ]] && [[ ${#ONLY_MODULES[@]} -gt 0 ]]; then
-            # ACFS_MODULE_PHASE stores manifest phase numbers (1-10) which do
-            # NOT map 1:1 to ACFS_PHASE_IDS indices.  Manifest phases 1+2
-            # both map to "user_setup", and manifest phase 10 maps to
-            # "finalize".  Use an explicit lookup table.
-            local -A _manifest_phase_to_id=(
-                [1]="user_setup" [2]="user_setup"
-                [3]="filesystem" [4]="shell_setup"
-                [5]="cli_tools"  [6]="languages"
-                [7]="agents"     [8]="cloud_db"
-                [9]="stack"      [10]="finalize"
-            )
-            local _mod _mod_phase_num _mod_phase_name
-            for _mod in "${ONLY_MODULES[@]}"; do
-                _mod_phase_num="${ACFS_MODULE_PHASE[$_mod]:-}"
-                if [[ -n "$_mod_phase_num" ]]; then
-                    _mod_phase_name="${_manifest_phase_to_id[$_mod_phase_num]:-}"
-                    if [[ "$_mod_phase_name" == "$phase_id" ]]; then
-                        # Explicitly requested module lives in this phase — don't skip
-                        return 1
-                    fi
-                fi
-            done
-        fi
-
-        # Also check ONLY_PHASES (bd-21kh). If the user explicitly requested
-        # this phase, it should run even if previously completed.
-        if [[ "${ONLY_PHASES+x}" == "x" ]] && [[ ${#ONLY_PHASES[@]} -gt 0 ]]; then
-            local -A _manifest_phase_to_id_only=(
-                [1]="user_setup" [2]="user_setup"
-                [3]="filesystem" [4]="shell_setup"
-                [5]="cli_tools"  [6]="languages"
-                [7]="agents"     [8]="cloud_db"
-                [9]="stack"      [10]="finalize"
-            )
-            local _target_phase
-            for _target_phase in "${ONLY_PHASES[@]}"; do
-                if [[ "${_manifest_phase_to_id_only[$_target_phase]:-}" == "$phase_id" ]]; then
-                    # Explicitly requested phase — don't skip
-                    return 1
-                fi
-            done
+        if state_has_module_selection && state_selection_includes_phase "$phase_id"; then
+            return 1
         fi
 
         return 0
@@ -2119,45 +2147,8 @@ state_should_skip_phase() {
     # Uses OR semantics (matching the completed-phases block above): if EITHER
     # a requested module belongs to this phase OR the phase number was explicitly
     # requested, the phase should run.  (Bug #227)
-    if [[ ("${ONLY_MODULES+x}" == "x" && ${#ONLY_MODULES[@]} -gt 0) || \
-          ("${ONLY_PHASES+x}" == "x" && ${#ONLY_PHASES[@]} -gt 0) ]]; then
-        local -A _manifest_phase_to_id_fresh=(
-            [1]="user_setup" [2]="user_setup"
-            [3]="filesystem" [4]="shell_setup"
-            [5]="cli_tools"  [6]="languages"
-            [7]="agents"     [8]="cloud_db"
-            [9]="stack"      [10]="finalize"
-        )
-        local _only_match_found=0
-
-        # Check --only modules
-        if [[ "${ONLY_MODULES+x}" == "x" ]] && [[ ${#ONLY_MODULES[@]} -gt 0 ]]; then
-            local _mod_fresh _mod_phase_num_fresh _mod_phase_name_fresh
-            for _mod_fresh in "${ONLY_MODULES[@]}"; do
-                _mod_phase_num_fresh="${ACFS_MODULE_PHASE[$_mod_fresh]:-}"
-                if [[ -n "$_mod_phase_num_fresh" ]]; then
-                    _mod_phase_name_fresh="${_manifest_phase_to_id_fresh[$_mod_phase_num_fresh]:-}"
-                    if [[ "$_mod_phase_name_fresh" == "$phase_id" ]]; then
-                        _only_match_found=1
-                        break
-                    fi
-                fi
-            done
-        fi
-
-        # Check --only-phase (only if modules didn't already match)
-        if [[ "$_only_match_found" -eq 0 ]] && \
-           [[ "${ONLY_PHASES+x}" == "x" ]] && [[ ${#ONLY_PHASES[@]} -gt 0 ]]; then
-            local _target_phase_fresh
-            for _target_phase_fresh in "${ONLY_PHASES[@]}"; do
-                if [[ "${_manifest_phase_to_id_fresh[$_target_phase_fresh]:-}" == "$phase_id" ]]; then
-                    _only_match_found=1
-                    break
-                fi
-            done
-        fi
-
-        if [[ "$_only_match_found" -eq 0 ]]; then
+    if state_has_module_selection; then
+        if ! state_selection_includes_phase "$phase_id"; then
             return 0  # skip — neither requested modules nor phases match
         fi
     fi

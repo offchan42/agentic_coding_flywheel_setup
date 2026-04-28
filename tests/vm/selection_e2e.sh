@@ -203,33 +203,26 @@ test_no_deps_prints_warning() {
 # ============================================================
 
 test_skip_vault_with_explicit_only_fails() {
-    local name="--skip-vault --only tools.vault produces empty or fails"
+    local name="--skip-vault --only tools.vault fails"
     local output rc
 
-    # When you --only a module but also --skip it, the result should be empty or error
+    # When --only requests a module that a skip flag excludes, the selector should
+    # fail instead of silently previewing an empty install plan.
     set +e
     output=$(bash "$REPO_ROOT/install.sh" --print-plan --only tools.vault --skip-vault 2>&1)
     rc=$?
     set -e
 
-    # Either the plan is empty or the script failed
-    local module_count
-    module_count=$(echo "$output" | grep -cE '^[[:space:]]*[0-9]+\\.[[:space:]]+\\[Phase' || true)
-
-    if [[ $rc -ne 0 ]]; then
+    if [[ $rc -ne 0 ]] && echo "$output" | grep -qiE "selection|only|skip"; then
         pass "$name"
         return 0
     fi
 
-    if [[ "$module_count" -eq 0 ]]; then
-        pass "$name"
-    else
-        fail "$name" "Expected empty plan when module is both --only and --skip (found $module_count plan items)"
-    fi
+    fail "$name" "Expected selector failure when module is both --only and --skip (rc=$rc)"
 }
 
 test_skip_postgres_with_explicit_only_fails() {
-    local name="--skip-postgres --only db.postgres18 produces empty or fails"
+    local name="--skip-postgres --only db.postgres18 fails"
     local output rc
 
     set +e
@@ -237,11 +230,11 @@ test_skip_postgres_with_explicit_only_fails() {
     rc=$?
     set -e
 
-    # db.postgres18 should NOT be in the plan
-    if ! echo "$output" | grep -qE '^\s*db\.postgres18'; then
+    if [[ $rc -ne 0 ]] && echo "$output" | grep -qiE "selection|only|skip"; then
         pass "$name"
+        return 0
     else
-        fail "$name" "db.postgres18 should be excluded by --skip-postgres"
+        fail "$name" "Expected selector failure when module is both --only and --skip (rc=$rc)"
     fi
 }
 

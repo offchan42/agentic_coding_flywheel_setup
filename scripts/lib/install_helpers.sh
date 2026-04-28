@@ -265,6 +265,17 @@ acfs_resolve_selection() {
         done
     fi
 
+    if [[ "${#ONLY_MODULES[@]}" -gt 0 ]]; then
+        for module in "${ONLY_MODULES[@]}"; do
+            [[ -n "$module" ]] || continue
+            if [[ -n "${skip_set[$module]:-}" ]]; then
+                log_error "Selection error: $module was requested with --only and excluded by ${skip_reason[$module]}"
+                log_error "Remove the skip selector or omit --only $module."
+                return 1
+            fi
+        done
+    fi
+
     for module in "${!skip_set[@]}"; do
         if [[ -n "${desired[$module]:-}" ]]; then
             unset "desired[$module]"

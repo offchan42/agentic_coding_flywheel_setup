@@ -117,6 +117,11 @@ load_bats_helpers() {
                 return 1
             fi
         }
+
+        fail() {
+            echo "${1:-Test failed}"
+            return 1
+        }
     fi
 }
 

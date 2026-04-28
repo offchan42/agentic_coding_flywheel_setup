@@ -35,6 +35,38 @@ teardown() {
     common_teardown
 }
 
+use_spy_sudo() {
+    spy_command "sudo"
+    export ACFS_TEST_SUDO_BIN="$STUB_DIR/sudo"
+
+    _acfs_system_binary_path() {
+        local name="${1:-}"
+        local candidate=""
+
+        [[ -n "$name" ]] || return 1
+
+        if [[ "$name" == "sudo" && -n "${ACFS_TEST_SUDO_BIN:-}" && -x "$ACFS_TEST_SUDO_BIN" ]]; then
+            printf '%s\n' "$ACFS_TEST_SUDO_BIN"
+            return 0
+        fi
+
+        for candidate in \
+            "/usr/bin/$name" \
+            "/bin/$name" \
+            "/usr/local/bin/$name" \
+            "/usr/local/sbin/$name" \
+            "/usr/sbin/$name" \
+            "/sbin/$name"
+        do
+            [[ -x "$candidate" ]] || continue
+            printf '%s\n' "$candidate"
+            return 0
+        done
+
+        return 1
+    }
+}
+
 @test "acfs_flag_bool: parses boolean values" {
     export TEST_VAR="true"
     run acfs_flag_bool "TEST_VAR"
@@ -79,6 +111,24 @@ teardown() {
     if [[ -z "${ACFS_EFFECTIVE_RUN[mod2]}" ]]; then fail "mod2 not selected"; fi
 }
 
+@test "acfs_resolve_selection: --only and --skip same module fails" {
+    ONLY_MODULES=("mod1")
+    SKIP_MODULES=("mod1")
+
+    if acfs_resolve_selection 2>/dev/null; then
+        fail "selection should fail when a directly requested module is also skipped"
+    fi
+}
+
+@test "acfs_resolve_selection: --only-phase can skip a selected module" {
+    ONLY_PHASES=("1")
+    SKIP_MODULES=("mod1")
+
+    acfs_resolve_selection
+
+    if [[ -n "${ACFS_EFFECTIVE_RUN[mod1]}" ]]; then fail "mod1 selected"; fi
+}
+
 @test "run_as_current_shell: executes command" {
     run run_as_current_shell "echo 'hello world'"
     assert_success
@@ -102,7 +152,7 @@ teardown() {
     if [[ "$out" != *" ACFS_BASH_BIN="* ]]; then
         fail "Did not pass bash path as env data"
     fi
-    if [[ "$out" != *" bash -c "* ]]; then
+    if [[ "$out" != *"/bash -c "* ]]; then
         fail "Did not call bash -c"
     fi
     if [[ "$out" != *'_acfs_primary_bin="${ACFS_BIN_DIR:-$HOME/.local/bin}"'* ]]; then
@@ -231,7 +281,7 @@ EOF
         return 1
     }
 
-    spy_command "sudo"
+    use_spy_sudo
 
     run run_as_target env
     assert_success
@@ -264,7 +314,7 @@ EOF
         return 1
     }
 
-    spy_command "sudo"
+    use_spy_sudo
 
     run run_as_target env
     assert_success
@@ -297,7 +347,7 @@ EOF
         return 1
     }
 
-    spy_command "sudo"
+    use_spy_sudo
 
     run run_as_target env
     assert_success
@@ -343,7 +393,7 @@ EOF
         return 1
     }
 
-    spy_command "sudo"
+    use_spy_sudo
 
     run run_as_target env
     assert_success
@@ -429,7 +479,7 @@ EOF
     export TARGET_USER="missinguser"
     unset TARGET_HOME ACFS_BIN_DIR ACFS_HOME
     stub_command "getent" "" 2
-    spy_command "sudo"
+    use_spy_sudo
 
     run run_as_target env
     assert_failure
@@ -443,7 +493,7 @@ EOF
 @test "run_as_target: rejects slash TARGET_HOME override" {
     export TARGET_USER="testuser"
     export TARGET_HOME="/"
-    spy_command "sudo"
+    use_spy_sudo
 
     run run_as_target env
     assert_failure
@@ -457,7 +507,7 @@ EOF
 @test "run_as_target: rejects invalid TARGET_USER before sudo" {
     export TARGET_USER="../bad user"
     export TARGET_HOME="/home/testuser"
-    spy_command "sudo"
+    use_spy_sudo
 
     run run_as_target env
     assert_failure
@@ -514,7 +564,7 @@ EOF
         printf '%s\n' 'poisoned'
     }
 
-    spy_command "sudo"
+    use_spy_sudo
 
     run run_as_target env
     assert_success
@@ -562,7 +612,7 @@ EOF
     export TARGET_USER="testuser"
     export TARGET_HOME="/home/testuser"
     export ACFS_BIN_DIR="relative/bin"
-    spy_command "sudo"
+    use_spy_sudo
 
     run_as_target() {
         echo "run_as_target invoked"
@@ -585,7 +635,7 @@ EOF
     export HOME="$(create_temp_dir)"
     export ACFS_BIN_DIR="/usr/local/bin"
 
-    spy_command "sudo"
+    use_spy_sudo
     stub_command "getent" "" 2
     stub_command "id" "otheruser" 0
     stub_command "whoami" "otheruser" 0

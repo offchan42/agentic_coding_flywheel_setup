@@ -265,6 +265,48 @@ test_skip_dependency_with_no_deps_allowed() {
     test_fail "$name"
 }
 
+test_only_and_skip_same_module_fails() {
+    local name="--only and --skip same module fails"
+    reset_selection
+    ONLY_MODULES=("agents.codex")
+    SKIP_MODULES=("agents.codex")
+
+    if ! acfs_resolve_selection 2>/dev/null; then
+        test_pass "$name"
+    else
+        test_fail "$name" "Should fail when a directly requested module is also skipped"
+    fi
+}
+
+test_only_and_skip_same_module_with_no_deps_fails() {
+    local name="--only and --skip same module fails even with --no-deps"
+    reset_selection
+    ONLY_MODULES=("agents.codex")
+    SKIP_MODULES=("agents.codex")
+    NO_DEPS=true
+
+    if ! acfs_resolve_selection 2>/dev/null; then
+        test_pass "$name"
+    else
+        test_fail "$name" "Direct selector contradictions should not be masked by --no-deps"
+    fi
+}
+
+test_only_phase_can_skip_selected_module() {
+    local name="--only-phase allows skipping one selected module"
+    reset_selection
+    ONLY_PHASES=("7")
+    SKIP_MODULES=("agents.codex")
+
+    if acfs_resolve_selection 2>/dev/null; then
+        if ! should_run_module "agents.codex" && should_run_module "agents.claude"; then
+            test_pass "$name"
+            return
+        fi
+    fi
+    test_fail "$name" "Phase-scoped selection should allow excluding an individual module"
+}
+
 test_skip_unknown_module_fails() {
     local name="--skip with unknown module fails"
     reset_selection
@@ -671,6 +713,9 @@ test_skip_removes_module
 test_skip_leaves_others
 test_skip_dependency_fails
 test_skip_dependency_with_no_deps_allowed
+test_only_and_skip_same_module_fails
+test_only_and_skip_same_module_with_no_deps_fails
+test_only_phase_can_skip_selected_module
 test_skip_unknown_module_fails
 
 # --no-deps tests

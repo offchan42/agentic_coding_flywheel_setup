@@ -3391,7 +3391,10 @@ update_acfs_self() {
     local _origin_head_ref=""
     _origin_head_ref=$(git -C "$ACFS_REPO_ROOT" symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null) || true
     if [[ -n "$_origin_head_ref" ]]; then
-        remote_branch="${_origin_head_ref##*/}"
+        # Strip the literal `refs/remotes/origin/` prefix. Use shortest-match
+        # `#` rather than longest-match `##*/` so branch names containing
+        # slashes (e.g. `release/v1`) survive intact.
+        remote_branch="${_origin_head_ref#refs/remotes/origin/}"
     fi
 
     # Only auto-update when the local branch matches a primary remote branch

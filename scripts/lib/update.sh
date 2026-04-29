@@ -2822,8 +2822,8 @@ ACFS_TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/acfs_cargo_build.XXXXXX")"
 trap '[ -n "$ACFS_TMP_DIR" ] && rm -rf "$ACFS_TMP_DIR"' EXIT
 git clone --depth 1 "$1" "$ACFS_TMP_DIR/src"
 cd "$ACFS_TMP_DIR/src"
-cargo build --release
-cp "target/release/$2" "$HOME/.cargo/bin/$2"
+cargo build --release --target-dir "$ACFS_TMP_DIR/target"
+install -m 0755 "$ACFS_TMP_DIR/target/release/$2" "$HOME/.cargo/bin/$2"
 EOF
 )"
     update_run_in_target_context "" bash -c "$build_cmd" _ "$repo_url" "$binary_name"

@@ -502,6 +502,73 @@ else
 fi
 
 # ============================================================
+section "Test 3i: cargo git source installs ignore inherited CARGO_TARGET_DIR"
+# ============================================================
+cargo_target_dir_output=$(
+    bash -c '
+        set -euo pipefail
+        source "'"$UPDATE_SH"'"
+
+        temp_root="${TMPDIR:-/tmp}/acfs-cargo-target-dir.$$"
+        source_repo="$temp_root/source"
+        fake_bin="$temp_root/bin"
+        temp_home="$temp_root/home"
+        inherited_target="$temp_root/inherited-target"
+
+        mkdir -p "$source_repo" "$fake_bin" "$temp_home" "$inherited_target"
+        git -C "$source_repo" init -b main >/dev/null
+        git -C "$source_repo" config user.email test@example.invalid
+        git -C "$source_repo" config user.name "ACFS Test"
+        printf "[package]\nname = \"demo_tool\"\nversion = \"0.1.0\"\nedition = \"2021\"\n" > "$source_repo/Cargo.toml"
+        git -C "$source_repo" add Cargo.toml
+        git -C "$source_repo" commit -m base >/dev/null
+
+        cat > "$fake_bin/cargo" <<'"'"'EOF'"'"'
+#!/usr/bin/env bash
+set -euo pipefail
+target_dir=""
+prev=""
+for arg in "$@"; do
+    if [[ "$prev" == "--target-dir" ]]; then
+        target_dir="$arg"
+        break
+    fi
+    prev="$arg"
+done
+if [[ -z "$target_dir" ]]; then
+    echo "MISSING_TARGET_DIR=yes"
+    exit 42
+fi
+mkdir -p "$target_dir/release"
+printf "%s\n" "#!/usr/bin/env bash" "printf \"%s\\n\" demo-tool" > "$target_dir/release/demo_tool"
+chmod +x "$target_dir/release/demo_tool"
+printf "CARGO_TARGET_DIR_ENV=%s\n" "${CARGO_TARGET_DIR:-}"
+printf "CARGO_ARGS=%s\n" "$*"
+printf "BUILD_OUTPUT=%s\n" "$target_dir"
+EOF
+        chmod +x "$fake_bin/cargo"
+
+        HOME="$temp_home"
+        TARGET_HOME="$temp_home"
+        CARGO_TARGET_DIR="$inherited_target"
+        PATH="$fake_bin:$PATH"
+        UPDATE_LOG_FILE="/dev/null"
+
+        update_run_cargo_git_source_install "$source_repo" demo_tool
+        "$temp_home/.cargo/bin/demo_tool"
+    ' 2>&1
+) || true
+
+if echo "$cargo_target_dir_output" | grep -q '^CARGO_TARGET_DIR_ENV=.*/inherited-target$' \
+    && echo "$cargo_target_dir_output" | grep -q '^CARGO_ARGS=build --release --target-dir .*/target$' \
+    && echo "$cargo_target_dir_output" | grep -q '^demo-tool$' \
+    && ! echo "$cargo_target_dir_output" | grep -q '^BUILD_OUTPUT=.*/inherited-target'; then
+    pass "cargo git source helper installs from its own target dir despite inherited CARGO_TARGET_DIR"
+else
+    fail "cargo git source helper still depends on inherited or default target dir: $cargo_target_dir_output"
+fi
+
+# ============================================================
 section "Test 4: Function instrumentation (mock)"
 # ============================================================
 # Source update.sh, override update_run_verified_installer with a mock,

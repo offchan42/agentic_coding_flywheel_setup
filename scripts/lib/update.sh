@@ -3189,6 +3189,7 @@ _acfs_collect_tracked_dirty_paths() {
 
 _acfs_worktree_path_matches_upstream_history() {
     local _acfs_path="$1"
+    local _acfs_remote_branch="${2:-main}"
     local _acfs_work_hash=""
     local _acfs_ref=""
     local _acfs_blob=""
@@ -3198,7 +3199,7 @@ _acfs_worktree_path_matches_upstream_history() {
     _acfs_work_hash="$(git -C "$ACFS_REPO_ROOT" hash-object -- "$_acfs_path" 2>/dev/null)" || return 1
     [[ -n "$_acfs_work_hash" ]] || return 1
 
-    for _acfs_ref in HEAD origin/main; do
+    for _acfs_ref in HEAD "origin/${_acfs_remote_branch}"; do
         _acfs_blob="$(git -C "$ACFS_REPO_ROOT" rev-parse "$_acfs_ref:$_acfs_path" 2>/dev/null || true)"
         [[ "$_acfs_blob" == "$_acfs_work_hash" ]] && return 0
     done
@@ -3207,19 +3208,21 @@ _acfs_worktree_path_matches_upstream_history() {
         [[ -n "$_acfs_commit" ]] || continue
         _acfs_blob="$(git -C "$ACFS_REPO_ROOT" rev-parse "$_acfs_commit:$_acfs_path" 2>/dev/null || true)"
         [[ "$_acfs_blob" == "$_acfs_work_hash" ]] && return 0
-    done < <(git -C "$ACFS_REPO_ROOT" rev-list --ancestry-path HEAD..origin/main -- "$_acfs_path" 2>/dev/null || true)
+    done < <(git -C "$ACFS_REPO_ROOT" rev-list --ancestry-path "HEAD..origin/${_acfs_remote_branch}" -- "$_acfs_path" 2>/dev/null || true)
 
     return 1
 }
 
 _acfs_dirty_paths_are_upstream_derived() {
+    local _acfs_remote_branch="$1"
     local _acfs_dirty_path=""
+    shift || true
 
     (($# > 0)) || return 1
-    git -C "$ACFS_REPO_ROOT" merge-base --is-ancestor HEAD origin/main >/dev/null 2>&1 || return 1
+    git -C "$ACFS_REPO_ROOT" merge-base --is-ancestor HEAD "origin/${_acfs_remote_branch}" >/dev/null 2>&1 || return 1
 
     for _acfs_dirty_path in "$@"; do
-        _acfs_worktree_path_matches_upstream_history "$_acfs_dirty_path" || return 1
+        _acfs_worktree_path_matches_upstream_history "$_acfs_dirty_path" "$_acfs_remote_branch" || return 1
     done
 }
 
@@ -3227,19 +3230,20 @@ _acfs_try_upstream_derived_dirty_fast_forward() {
     local current_branch="$1"
     local local_head="$2"
     local remote_head="$3"
+    local remote_branch="${4:-main}"
     local -a dirty_paths=()
 
     _acfs_repo_root_is_runtime_acfs_home || return 1
 
     _acfs_collect_tracked_dirty_paths dirty_paths
     ((${#dirty_paths[@]} > 0)) || return 1
-    _acfs_dirty_paths_are_upstream_derived "${dirty_paths[@]}" || return 1
+    _acfs_dirty_paths_are_upstream_derived "$remote_branch" "${dirty_paths[@]}" || return 1
 
     log_item "fix" "ACFS self-update" "tracked changes match upstream history; completing fast-forward"
     log_to_file "Repairing upstream-derived dirty checkout with ${#dirty_paths[@]} tracked path(s)"
 
     if git -C "$ACFS_REPO_ROOT" checkout -f -B "$current_branch" "$remote_head" >/dev/null 2>&1; then
-        git -C "$ACFS_REPO_ROOT" branch --set-upstream-to=origin/main "$current_branch" >/dev/null 2>&1 || true
+        git -C "$ACFS_REPO_ROOT" branch --set-upstream-to="origin/${remote_branch}" "$current_branch" >/dev/null 2>&1 || true
         log_to_file "Completed managed dirty fast-forward from $local_head to $remote_head"
         return 0
     fi
@@ -3489,7 +3493,7 @@ update_acfs_self() {
     # causing constant checksum-mismatch failures for Dicklesworthstone tools.
     local self_update_completed=false
     if [[ -n "$(git -C "$ACFS_REPO_ROOT" status --porcelain --untracked-files=no 2>/dev/null)" ]]; then
-        if _acfs_try_upstream_derived_dirty_fast_forward "$current_branch" "$local_head" "$remote_head"; then
+        if _acfs_try_upstream_derived_dirty_fast_forward "$current_branch" "$local_head" "$remote_head" "$remote_branch"; then
             self_update_completed=true
         else
             log_item "warn" "ACFS self-update" "tracked files have local modifications; skipping full pull"

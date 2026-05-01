@@ -1496,6 +1496,15 @@ update_retry_sleep_seconds() {
 
     if [[ -z "$attempt" || ! "$attempt" =~ ^[0-9]+$ || "$attempt" =~ ^0+$ ]]; then
         attempt=1
+    else
+        while [[ "${#attempt}" -gt 1 && "$attempt" == 0* ]]; do
+            attempt="${attempt#0}"
+        done
+        if [[ "${#attempt}" -gt 2 ]] || ((10#$attempt > 20)); then
+            attempt=20
+        else
+            attempt="$((10#$attempt))"
+        fi
     fi
 
     if [[ -n "${ACFS_UPDATE_RETRY_SLEEP_SECONDS:-}" ]]; then

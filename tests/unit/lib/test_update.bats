@@ -9240,6 +9240,23 @@ EOF
     assert_output "300"
 }
 
+@test "update_retry_sleep_seconds: normalizes direct attempt argument before fallback" {
+    unset ACFS_UPDATE_RETRY_SLEEP_SECONDS
+
+    run update_retry_sleep_seconds 08
+    assert_success
+    assert_output "16"
+
+    run update_retry_sleep_seconds 9999
+    assert_success
+    assert_output "40"
+
+    export ACFS_UPDATE_RETRY_SLEEP_SECONDS=bogus
+    run update_retry_sleep_seconds 9999
+    assert_success
+    assert_output "40"
+}
+
 @test "update_run_command_capture_with_retry: malformed retry sleep still retries transient failure" {
     init_stub_dir
     export PATH="$STUB_DIR:$PATH"

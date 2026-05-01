@@ -349,13 +349,21 @@ support_home_for_user() {
 
 support_resolve_explicit_target_home() {
     local target_home=""
+    local resolved_home=""
 
     if [[ -n "$_SUPPORT_EXPLICIT_TARGET_USER_RAW" ]]; then
         support_is_valid_username "$_SUPPORT_EXPLICIT_TARGET_USER_RAW" || return 1
-        target_home="$(support_existing_abs_home "$(support_home_for_user "$_SUPPORT_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
-        [[ -n "$target_home" ]] || return 1
-        printf '%s\n' "${target_home%/}"
-        return 0
+        resolved_home="$(support_existing_abs_home "$(support_home_for_user "$_SUPPORT_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
+        if [[ -n "$resolved_home" ]]; then
+            printf '%s\n' "${resolved_home%/}"
+            return 0
+        fi
+        target_home="$_SUPPORT_EXPLICIT_TARGET_HOME"
+        if [[ -n "$target_home" ]] && [[ "$target_home" != "${_SUPPORT_CURRENT_HOME:-}" ]] && support_candidate_has_acfs_data "$target_home/.acfs"; then
+            printf '%s\n' "${target_home%/}"
+            return 0
+        fi
+        return 1
     fi
 
     target_home="$_SUPPORT_EXPLICIT_TARGET_HOME"
@@ -585,13 +593,6 @@ support_resolve_acfs_home() {
         fi
     fi
 
-    candidate="$(support_current_home_acfs_candidate 2>/dev/null || true)"
-    if [[ -n "$candidate" ]]; then
-        _SUPPORT_ACFS_HOME_SOURCE="current_home"
-        printf '%s\n' "$candidate"
-        return 0
-    fi
-
     if [[ "$SUPPORT_SYSTEM_STATE_WAS_EXPLICIT" == true ]]; then
         target_home=$(support_read_target_home_from_state "$SUPPORT_SYSTEM_STATE_FILE" 2>/dev/null || true)
         if [[ -n "$target_home" ]]; then
@@ -618,6 +619,13 @@ support_resolve_acfs_home() {
     if [[ -n "$_SUPPORT_ACFS_HOME" ]] && support_candidate_has_acfs_data "$_SUPPORT_ACFS_HOME"; then
         _SUPPORT_ACFS_HOME_SOURCE="explicit_acfs_home"
         printf '%s\n' "$_SUPPORT_ACFS_HOME"
+        return 0
+    fi
+
+    candidate="$(support_current_home_acfs_candidate 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+        _SUPPORT_ACFS_HOME_SOURCE="current_home"
+        printf '%s\n' "$candidate"
         return 0
     fi
 
@@ -681,6 +689,12 @@ support_infer_target_home_from_acfs_home() {
         :
     elif [[ "${_SUPPORT_ACFS_HOME_SOURCE:-}" == "explicit_target_home" ]]; then
         :
+    elif [[ "${_SUPPORT_ACFS_HOME_SOURCE:-}" == "script_acfs_home" ]]; then
+        :
+    elif [[ "${_SUPPORT_ACFS_HOME_SOURCE:-}" == "system_state_target_home" ]]; then
+        :
+    elif [[ "${_SUPPORT_ACFS_HOME_SOURCE:-}" == "system_state_target_user" ]]; then
+        :
     else
         return 1
     fi
@@ -705,7 +719,9 @@ support_initialize_context() {
     state_file=$(support_get_install_state_file)
     path_home="$(support_infer_target_home_from_acfs_home 2>/dev/null || true)"
     explicit_target_home="$(support_resolve_explicit_target_home 2>/dev/null || true)"
-    if [[ -n "$path_home" ]]; then
+    if [[ "${_SUPPORT_ACFS_HOME_SOURCE:-}" == system_state_* ]]; then
+        state_target_user="$(support_read_target_user_from_state "$SUPPORT_SYSTEM_STATE_FILE" 2>/dev/null || support_read_target_user_from_state "$state_file" 2>/dev/null || true)"
+    elif [[ -n "$path_home" ]]; then
         state_target_user="$(support_read_target_user_from_state "$state_file" 2>/dev/null || true)"
     fi
     if [[ -z "$state_target_user" ]]; then
@@ -761,6 +777,13 @@ support_initialize_context() {
         if [[ -n "$resolved_target_home" ]]; then
             SUPPORT_TARGET_HOME="$resolved_target_home"
             target_home_source="current_home"
+        fi
+    fi
+
+    if [[ -z "$SUPPORT_TARGET_USER" ]] && [[ -n "$state_target_user" ]] && support_is_valid_username "$state_target_user"; then
+        resolved_target_home="$(support_existing_abs_home "$(support_home_for_user "$state_target_user" 2>/dev/null || true)" 2>/dev/null || true)"
+        if [[ -z "$resolved_target_home" ]] || [[ "$resolved_target_home" == "$SUPPORT_TARGET_HOME" ]]; then
+            SUPPORT_TARGET_USER="$state_target_user"
         fi
     fi
 
@@ -1250,7 +1273,7 @@ main() {
     # --- Collect system info ---
     log_detail "Collecting system info..."
     if [[ -f /etc/os-release ]]; then
-        collect_file "/etc/os-release" "$bundle_dir" "os-release"
+        collect_file "/etc/os-release" "$bundle_dir" "os-release" || true
     fi
 
     # Systemd journal (last 100 acfs-related lines)

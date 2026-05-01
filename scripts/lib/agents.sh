@@ -249,7 +249,7 @@ _agent_target_home() {
         printf '/root\n'
         return 0
     fi
-    if [[ -n "$explicit_home" && -z "${TARGET_USER:-}" && "$target_user" == "$current_user" ]]; then
+    if [[ -n "$explicit_home" && "$target_user" == "$current_user" ]]; then
         printf '%s\n' "$explicit_home"
         return 0
     fi

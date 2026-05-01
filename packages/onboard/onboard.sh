@@ -289,13 +289,21 @@ onboard_is_valid_username() {
 
 onboard_resolve_explicit_runtime_home() {
     local target_home=""
+    local resolved_home=""
 
     if [[ -n "$_ONBOARD_EXPLICIT_TARGET_USER_RAW" ]]; then
         onboard_is_valid_username "$_ONBOARD_EXPLICIT_TARGET_USER_RAW" || return 1
-        target_home="$(onboard_existing_abs_home "$(onboard_home_for_user "$_ONBOARD_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
-        [[ -n "$target_home" ]] || return 1
-        printf '%s\n' "${target_home%/}"
-        return 0
+        resolved_home="$(onboard_existing_abs_home "$(onboard_home_for_user "$_ONBOARD_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
+        if [[ -n "$resolved_home" ]]; then
+            printf '%s\n' "${resolved_home%/}"
+            return 0
+        fi
+        target_home="$_ONBOARD_EXPLICIT_TARGET_HOME"
+        if [[ -n "$target_home" ]] && [[ "$target_home" != "${_ONBOARD_CURRENT_HOME:-}" ]] && onboard_candidate_has_acfs_data "$target_home/.acfs"; then
+            printf '%s\n' "${target_home%/}"
+            return 0
+        fi
+        return 1
     fi
 
     target_home="$_ONBOARD_EXPLICIT_TARGET_HOME"
@@ -497,13 +505,6 @@ onboard_resolve_acfs_home() {
         fi
     fi
 
-    candidate="$(onboard_current_home_acfs_candidate 2>/dev/null || true)"
-    if [[ -n "$candidate" ]]; then
-        _ONBOARD_ACFS_HOME_SOURCE="current_home"
-        printf '%s\n' "$candidate"
-        return 0
-    fi
-
     target_home="$(onboard_existing_abs_home "$(onboard_read_state_string "$_ONBOARD_SYSTEM_STATE_FILE" "target_home" 2>/dev/null || true)" 2>/dev/null || true)"
     candidate="${target_home}/.acfs"
     if [[ -n "$target_home" ]] && onboard_candidate_has_acfs_data "$candidate"; then
@@ -528,6 +529,13 @@ onboard_resolve_acfs_home() {
     if onboard_candidate_has_acfs_data "$_ONBOARD_EXPLICIT_ACFS_HOME"; then
         _ONBOARD_ACFS_HOME_SOURCE="explicit_acfs_home"
         printf '%s\n' "$_ONBOARD_EXPLICIT_ACFS_HOME"
+        return 0
+    fi
+
+    candidate="$(onboard_current_home_acfs_candidate 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+        _ONBOARD_ACFS_HOME_SOURCE="current_home"
+        printf '%s\n' "$candidate"
         return 0
     fi
 

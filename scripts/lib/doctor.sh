@@ -230,6 +230,7 @@ if [[ -n "$_ACFS_DOCTOR_ENV_TARGET_USER" ]]; then
     _ACFS_DOCTOR_ENV_TARGET_USER_WAS_SET=true
 fi
 _ACFS_DOCTOR_ENV_TARGET_HOME="$(_acfs_doctor_sanitize_abs_nonroot_path "${TARGET_HOME:-}" 2>/dev/null || true)"
+_ACFS_DOCTOR_ENV_ACFS_HOME="$(_acfs_doctor_sanitize_abs_nonroot_path "${ACFS_HOME:-}" 2>/dev/null || true)"
 TARGET_HOME="$_ACFS_DOCTOR_ENV_TARGET_HOME"
 ACFS_HOME="$(_acfs_doctor_sanitize_abs_nonroot_path "${ACFS_HOME:-}" 2>/dev/null || true)"
 ACFS_STATE_FILE="$(_acfs_doctor_sanitize_abs_nonroot_path "${ACFS_STATE_FILE:-}" 2>/dev/null || true)"
@@ -1039,12 +1040,31 @@ print_acfs_help() {
 _acfs_doctor_exec_bash_script() {
     local script_path="${1:-}"
     local bash_bin=""
+    local env_bin=""
+    local passthrough_acfs_home=""
+    local passthrough_home=""
     shift || true
 
     bash_bin="$(_acfs_doctor_system_binary_path bash 2>/dev/null || true)"
     if [[ -z "$bash_bin" ]]; then
         echo "Error: bash not found" >&2
         return 1
+    fi
+
+    passthrough_acfs_home="$(_acfs_doctor_sanitize_abs_nonroot_path "${_ACFS_DOCTOR_ENV_ACFS_HOME:-}" 2>/dev/null || true)"
+    passthrough_home="$(_acfs_doctor_sanitize_abs_nonroot_path "${_acfs_doctor_original_home:-}" 2>/dev/null || true)"
+    if [[ -n "$passthrough_acfs_home" ]] && [[ -n "$passthrough_home" ]] && \
+       _acfs_doctor_acfs_home_matches_home "$passthrough_acfs_home" "$passthrough_home" 2>/dev/null; then
+        env_bin="$(_acfs_doctor_system_binary_path env 2>/dev/null || true)"
+        if [[ -n "$env_bin" ]]; then
+            exec "$env_bin" \
+                HOME="$passthrough_home" \
+                ACFS_HOME="$passthrough_acfs_home" \
+                TARGET_USER="$_ACFS_DOCTOR_ENV_TARGET_USER" \
+                TARGET_HOME="$_ACFS_DOCTOR_ENV_TARGET_HOME" \
+                ACFS_BIN_DIR="$_ACFS_DOCTOR_ENV_BIN_DIR" \
+                "$bash_bin" "$script_path" "$@"
+        fi
     fi
 
     exec "$bash_bin" "$script_path" "$@"

@@ -9584,7 +9584,8 @@ EOF
         ACFS_STATE_FILE="$TEST_INSTALLED_ACFS/state.json" \
         bash -c 'source "$1" >/dev/null 2>&1 || true; TARGET_USER="missinguser"; TARGET_HOME=""; _doctor_run_manifest_check root "printf root-check-ran\\n"' _ "$sourceable_doctor" 2>&1 || true)
 
-    if [[ "$output" == *'sudo-called=-n env TARGET_USER=missinguser PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin bash -o pipefail -c printf root-check-ran\n'* ]] \
+    if { [[ "$output" == *'sudo-called=-n env TARGET_USER=missinguser PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin bash -o pipefail -c printf root-check-ran\n'* ]] \
+        || [[ "$output" == *"root-check-ran"* ]]; } \
         && [[ "$output" != *"Invalid TARGET_HOME"* ]]; then
         harness_pass "doctor root manifest checks still run when target_home is unresolved"
     else

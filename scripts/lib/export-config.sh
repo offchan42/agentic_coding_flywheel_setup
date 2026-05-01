@@ -504,13 +504,6 @@ resolve_acfs_home() {
         fi
     fi
 
-    candidate="$(export_current_home_acfs_candidate 2>/dev/null || true)"
-    if [[ -n "$candidate" ]]; then
-        _EXPORT_RESOLVED_ACFS_HOME="$candidate"
-        printf '%s\n' "$_EXPORT_RESOLVED_ACFS_HOME"
-        return 0
-    fi
-
     if [[ "$_EXPORT_SYSTEM_STATE_WAS_EXPLICIT" == true ]]; then
         detected_home=$(read_target_home_from_state "$_EXPORT_SYSTEM_STATE_FILE" 2>/dev/null || true)
         if [[ -n "$detected_home" ]]; then
@@ -536,6 +529,13 @@ resolve_acfs_home() {
 
     if [[ -n "$_EXPORT_EXPLICIT_ACFS_HOME" ]] && [[ -f "$_EXPORT_EXPLICIT_ACFS_HOME/state.json" || -f "$_EXPORT_EXPLICIT_ACFS_HOME/VERSION" || -d "$_EXPORT_EXPLICIT_ACFS_HOME/onboard" ]]; then
         _EXPORT_RESOLVED_ACFS_HOME="$_EXPORT_EXPLICIT_ACFS_HOME"
+        printf '%s\n' "$_EXPORT_RESOLVED_ACFS_HOME"
+        return 0
+    fi
+
+    candidate="$(export_current_home_acfs_candidate 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+        _EXPORT_RESOLVED_ACFS_HOME="$candidate"
         printf '%s\n' "$_EXPORT_RESOLVED_ACFS_HOME"
         return 0
     fi
@@ -668,13 +668,23 @@ home_for_user() {
 
 resolve_explicit_target_home() {
     local target_home=""
+    local resolved_home=""
 
     if [[ -n "$_EXPORT_EXPLICIT_TARGET_USER_RAW" ]]; then
         export_is_valid_username "$_EXPORT_EXPLICIT_TARGET_USER_RAW" || return 1
-        target_home="$(export_existing_abs_home "$(home_for_user "$_EXPORT_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
-        [[ -n "$target_home" ]] || return 1
-        printf '%s\n' "${target_home%/}"
-        return 0
+        resolved_home="$(export_existing_abs_home "$(home_for_user "$_EXPORT_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
+        if [[ -n "$resolved_home" ]]; then
+            printf '%s\n' "${resolved_home%/}"
+            return 0
+        fi
+        target_home="$_EXPORT_EXPLICIT_TARGET_HOME"
+        if [[ -n "$target_home" ]] && [[ "$target_home" != "${_EXPORT_CURRENT_HOME:-}" ]] && {
+            [[ -f "$target_home/.acfs/state.json" ]] || [[ -f "$target_home/.acfs/VERSION" ]] || [[ -d "$target_home/.acfs/onboard" ]]
+        }; then
+            printf '%s\n' "${target_home%/}"
+            return 0
+        fi
+        return 1
     fi
 
     target_home="$_EXPORT_EXPLICIT_TARGET_HOME"

@@ -270,8 +270,10 @@ find_changelog() {
         explicit_target_requested=true
     fi
 
-    [[ -n "$_CHANGELOG_FILE" ]] && locations=("${_CHANGELOG_FILE}" "${locations[@]}")
-    [[ -n "$_CHANGELOG_ACFS_HOME" ]] && locations=("${_CHANGELOG_ACFS_HOME}/CHANGELOG.md" "${locations[@]}")
+    [[ -n "$_CHANGELOG_FILE" ]] && locations+=("$_CHANGELOG_FILE")
+    if [[ -n "$_CHANGELOG_ACFS_HOME" ]] && [[ "${_CHANGELOG_ACFS_HOME}/CHANGELOG.md" != "$_CHANGELOG_FILE" ]]; then
+        locations+=("${_CHANGELOG_ACFS_HOME}/CHANGELOG.md")
+    fi
     if [[ "$explicit_target_requested" != "true" ]]; then
         locations+=("/data/projects/agentic_coding_flywheel_setup/CHANGELOG.md")
         [[ -n "$_CHANGELOG_CURRENT_HOME" ]] && locations+=("${_CHANGELOG_CURRENT_HOME}/.acfs/CHANGELOG.md")
@@ -340,21 +342,25 @@ changelog_home_for_user() {
         return 0
     fi
 
-    passwd_entry="$(changelog_getent_passwd_entry "$user" 2>/dev/null || true)"
-    if [[ -n "$passwd_entry" ]]; then
-        home_candidate="$(changelog_passwd_home_from_entry "$passwd_entry" 2>/dev/null || true)"
+    current_user="$(changelog_resolve_current_user 2>/dev/null || true)"
+    if [[ "$user" == "$current_user" ]]; then
+        home_candidate="${_CHANGELOG_CURRENT_HOME:-}"
+        if [[ "${_CHANGELOG_WAS_SOURCED:-false}" == "true" ]] && [[ -n "$home_candidate" ]]; then
+            printf '%s\n' "$home_candidate"
+            return 0
+        fi
+        if [[ -z "$home_candidate" ]]; then
+            home_candidate="$(changelog_sanitize_abs_nonroot_path "${HOME:-}" 2>/dev/null || true)"
+        fi
         if [[ -n "$home_candidate" ]]; then
             printf '%s\n' "$home_candidate"
             return 0
         fi
     fi
 
-    current_user="$(changelog_resolve_current_user 2>/dev/null || true)"
-    if [[ "$user" == "$current_user" ]]; then
-        home_candidate="${_CHANGELOG_CURRENT_HOME:-}"
-        if [[ -z "$home_candidate" ]]; then
-            home_candidate="$(changelog_sanitize_abs_nonroot_path "${HOME:-}" 2>/dev/null || true)"
-        fi
+    passwd_entry="$(changelog_getent_passwd_entry "$user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        home_candidate="$(changelog_passwd_home_from_entry "$passwd_entry" 2>/dev/null || true)"
         if [[ -n "$home_candidate" ]]; then
             printf '%s\n' "$home_candidate"
             return 0
@@ -366,13 +372,23 @@ changelog_home_for_user() {
 
 changelog_resolve_explicit_target_home() {
     local target_home=""
+    local resolved_home=""
 
     if [[ -n "$_CHANGELOG_EXPLICIT_TARGET_USER_RAW" ]]; then
         changelog_is_valid_username "$_CHANGELOG_EXPLICIT_TARGET_USER_RAW" || return 1
-        target_home="$(changelog_existing_abs_home "$(changelog_home_for_user "$_CHANGELOG_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
-        [[ -n "$target_home" ]] || return 1
-        printf '%s\n' "${target_home%/}"
-        return 0
+        resolved_home="$(changelog_existing_abs_home "$(changelog_home_for_user "$_CHANGELOG_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
+        if [[ -n "$resolved_home" ]]; then
+            printf '%s\n' "${resolved_home%/}"
+            return 0
+        fi
+        target_home="$_CHANGELOG_EXPLICIT_TARGET_HOME"
+        if [[ -n "$target_home" ]] && [[ "$target_home" != "${_CHANGELOG_CURRENT_HOME:-}" ]] && {
+            [[ -f "$target_home/.acfs/state.json" ]] || [[ -f "$target_home/.acfs/VERSION" ]] || [[ -f "$target_home/.acfs/CHANGELOG.md" ]] || [[ -d "$target_home/.acfs/onboard" ]]
+        }; then
+            printf '%s\n' "${target_home%/}"
+            return 0
+        fi
+        return 1
     fi
 
     target_home="$_CHANGELOG_EXPLICIT_TARGET_HOME"
@@ -487,13 +503,6 @@ resolve_changelog_acfs_home() {
         fi
     fi
 
-    candidate="$(changelog_current_home_acfs_candidate 2>/dev/null || true)"
-    if [[ -n "$candidate" ]]; then
-        _CHANGELOG_RESOLVED_ACFS_HOME="$candidate"
-        printf '%s\n' "$_CHANGELOG_RESOLVED_ACFS_HOME"
-        return 0
-    fi
-
     if [[ "$_CHANGELOG_SYSTEM_STATE_WAS_EXPLICIT" == true ]]; then
         target_home=$(changelog_read_target_home_from_state "$_CHANGELOG_SYSTEM_STATE_FILE" 2>/dev/null || true)
         if [[ -n "$target_home" ]]; then
@@ -519,6 +528,13 @@ resolve_changelog_acfs_home() {
 
     if [[ -n "$_CHANGELOG_EXPLICIT_ACFS_HOME" ]] && [[ -f "$_CHANGELOG_EXPLICIT_ACFS_HOME/state.json" || -f "$_CHANGELOG_EXPLICIT_ACFS_HOME/VERSION" || -f "$_CHANGELOG_EXPLICIT_ACFS_HOME/CHANGELOG.md" ]]; then
         _CHANGELOG_RESOLVED_ACFS_HOME="$_CHANGELOG_EXPLICIT_ACFS_HOME"
+        printf '%s\n' "$_CHANGELOG_RESOLVED_ACFS_HOME"
+        return 0
+    fi
+
+    candidate="$(changelog_current_home_acfs_candidate 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+        _CHANGELOG_RESOLVED_ACFS_HOME="$candidate"
         printf '%s\n' "$_CHANGELOG_RESOLVED_ACFS_HOME"
         return 0
     fi

@@ -303,6 +303,7 @@ _smoke_resolve_bootstrap_state_file() {
     local candidate=""
     local explicit_state_file=""
     local env_state_file=""
+    local system_target_home=""
 
     candidate="$(_smoke_script_acfs_home 2>/dev/null || true)"
     if [[ -n "$candidate" ]] && [[ -f "$candidate/state.json" ]]; then
@@ -310,15 +311,15 @@ _smoke_resolve_bootstrap_state_file() {
         return 0
     fi
 
-    candidate="$(_smoke_current_home_state_file 2>/dev/null || true)"
-    if [[ -n "$candidate" ]]; then
-        printf '%s\n' "$candidate"
-        return 0
-    fi
-
     if [[ -f "$_SMOKE_SYSTEM_STATE_FILE" ]]; then
-        printf '%s\n' "$_SMOKE_SYSTEM_STATE_FILE"
-        return 0
+        system_target_home="$(_smoke_read_state_string "$_SMOKE_SYSTEM_STATE_FILE" "target_home" 2>/dev/null || true)"
+        system_target_home="$(_smoke_sanitize_abs_nonroot_path "$system_target_home" 2>/dev/null || true)"
+        if [[ -n "$system_target_home" ]] && {
+            [[ -f "$system_target_home/.acfs/state.json" ]] || [[ -f "$system_target_home/.acfs/VERSION" ]] || [[ -d "$system_target_home/.acfs/onboard" ]]
+        }; then
+            printf '%s\n' "$_SMOKE_SYSTEM_STATE_FILE"
+            return 0
+        fi
     fi
 
     if [[ -n "$_SMOKE_EXPLICIT_ACFS_HOME" ]]; then
@@ -327,6 +328,17 @@ _smoke_resolve_bootstrap_state_file() {
             printf '%s\n' "$explicit_state_file"
             return 0
         fi
+    fi
+
+    if [[ -f "$_SMOKE_SYSTEM_STATE_FILE" ]]; then
+        printf '%s\n' "$_SMOKE_SYSTEM_STATE_FILE"
+        return 0
+    fi
+
+    candidate="$(_smoke_current_home_state_file 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+        printf '%s\n' "$candidate"
+        return 0
     fi
 
     if [[ -n "$_SMOKE_DEFAULT_ACFS_HOME" ]]; then

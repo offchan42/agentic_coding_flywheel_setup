@@ -240,6 +240,12 @@ resolve_home_dir() {
 
     expected_home="$(services_setup_sanitize_abs_nonroot_path "$expected_home" 2>/dev/null || true)"
 
+    current_user="$(services_setup_resolve_current_user 2>/dev/null || true)"
+    if [[ "$current_user" == "$user" ]] && [[ -n "$expected_home" ]]; then
+        printf '%s' "$expected_home"
+        return 0
+    fi
+
     passwd_entry="$(services_setup_getent_passwd_entry "$user" 2>/dev/null || true)"
     if [[ -n "$passwd_entry" ]]; then
         home="$(services_setup_passwd_home_from_entry "$passwd_entry" 2>/dev/null || true)"
@@ -254,7 +260,6 @@ resolve_home_dir() {
         return 0
     fi
 
-    current_user="$(services_setup_resolve_current_user 2>/dev/null || true)"
     if [[ "$current_user" == "$user" ]]; then
         home="$(services_setup_sanitize_abs_nonroot_path "${HOME:-}" 2>/dev/null || true)"
         if [[ -n "$home" ]] && { [[ -z "$expected_home" ]] || [[ "$home" == "$expected_home" ]]; }; then
@@ -1062,9 +1067,10 @@ check_wrangler_status() {
         return
     fi
 
-    if [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+    if run_as_user "$wrangler_bin" whoami >/dev/null 2>&1; then
         SERVICE_STATUS[wrangler]="configured"
-    elif run_as_user "$wrangler_bin" whoami >/dev/null 2>&1; then
+    elif services_setup_has_usable_secret "${CLOUDFLARE_API_TOKEN:-}" && \
+       run_as_user env CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" "$wrangler_bin" whoami >/dev/null 2>&1; then
         SERVICE_STATUS[wrangler]="configured"
     else
         SERVICE_STATUS[wrangler]="installed"
@@ -1312,8 +1318,10 @@ Try it:
   dcg test 'git reset --hard' --explain"
     fi
 
-    gum_box "DCG Setup" "DCG blocks destructive git/filesystem commands before they execute.
+    if [[ "$SERVICES_SETUP_NONINTERACTIVE" != "true" ]]; then
+        gum_box "DCG Setup" "DCG blocks destructive git/filesystem commands before they execute.
 It also supports optional protection packs (database, Kubernetes, cloud)."
+    fi
 
     if user_command_exists claude; then
         if dcg_hook_registered; then

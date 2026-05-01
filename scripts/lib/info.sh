@@ -345,13 +345,21 @@ info_home_for_user() {
 
 info_resolve_explicit_target_home() {
     local target_home=""
+    local resolved_home=""
 
     if [[ -n "$_INFO_EXPLICIT_TARGET_USER_RAW" ]]; then
         info_is_valid_username "$_INFO_EXPLICIT_TARGET_USER_RAW" || return 1
-        target_home="$(info_existing_abs_home "$(info_home_for_user "$_INFO_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
-        [[ -n "$target_home" ]] || return 1
-        printf '%s\n' "${target_home%/}"
-        return 0
+        resolved_home="$(info_existing_abs_home "$(info_home_for_user "$_INFO_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
+        if [[ -n "$resolved_home" ]]; then
+            printf '%s\n' "${resolved_home%/}"
+            return 0
+        fi
+        target_home="$_INFO_EXPLICIT_TARGET_HOME"
+        if [[ -n "$target_home" ]] && [[ "$target_home" != "${_INFO_CURRENT_HOME:-}" ]] && info_candidate_has_acfs_data "$target_home/.acfs"; then
+            printf '%s\n' "${target_home%/}"
+            return 0
+        fi
+        return 1
     fi
 
     target_home="$_INFO_EXPLICIT_TARGET_HOME"
@@ -761,13 +769,6 @@ info_get_data_home() {
         fi
     fi
 
-    candidate="$(info_current_home_acfs_candidate 2>/dev/null || true)"
-    if [[ -n "$candidate" ]]; then
-        _INFO_RESOLVED_ACFS_HOME="$candidate"
-        echo "$_INFO_RESOLVED_ACFS_HOME"
-        return 0
-    fi
-
     if [[ "$_INFO_SYSTEM_STATE_WAS_EXPLICIT" == true ]]; then
         target_home=$(info_read_target_home_from_state || true)
         if [[ -n "$target_home" ]]; then
@@ -793,6 +794,13 @@ info_get_data_home() {
 
     if [[ -n "$_INFO_EXPLICIT_ACFS_HOME" ]] && info_candidate_has_acfs_data "$_INFO_EXPLICIT_ACFS_HOME"; then
         _INFO_RESOLVED_ACFS_HOME="$_INFO_EXPLICIT_ACFS_HOME"
+        echo "$_INFO_RESOLVED_ACFS_HOME"
+        return 0
+    fi
+
+    candidate="$(info_current_home_acfs_candidate 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+        _INFO_RESOLVED_ACFS_HOME="$candidate"
         echo "$_INFO_RESOLVED_ACFS_HOME"
         return 0
     fi

@@ -448,13 +448,23 @@ _status_home_for_user() {
 
 _status_resolve_explicit_target_home() {
     local target_home=""
+    local resolved_home=""
 
     if [[ -n "$_STATUS_EXPLICIT_TARGET_USER_RAW" ]]; then
         _status_is_valid_username "$_STATUS_EXPLICIT_TARGET_USER_RAW" || return 1
-        target_home="$(_status_existing_abs_home "$(_status_home_for_user "$_STATUS_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
-        [[ -n "$target_home" ]] || return 1
-        printf '%s\n' "${target_home%/}"
-        return 0
+        resolved_home="$(_status_existing_abs_home "$(_status_home_for_user "$_STATUS_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
+        if [[ -n "$resolved_home" ]]; then
+            printf '%s\n' "${resolved_home%/}"
+            return 0
+        fi
+        target_home="$_STATUS_EXPLICIT_TARGET_HOME"
+        if [[ -n "$target_home" ]] && [[ "$target_home" != "${_STATUS_CURRENT_HOME:-}" ]] && {
+            [[ -f "$target_home/.acfs/state.json" ]] || [[ -f "$target_home/.acfs/VERSION" ]] || [[ -d "$target_home/.acfs/onboard" ]] || [[ -f "$target_home/.acfs/scripts/lib/status.sh" ]]
+        }; then
+            printf '%s\n' "${target_home%/}"
+            return 0
+        fi
+        return 1
     fi
 
     target_home="$_STATUS_EXPLICIT_TARGET_HOME"
@@ -879,13 +889,6 @@ _status_resolve_acfs_home() {
         fi
     fi
 
-    candidate="$(_status_current_home_acfs_candidate 2>/dev/null || true)"
-    if [[ -n "$candidate" ]]; then
-        _STATUS_RESOLVED_ACFS_HOME="$candidate"
-        printf '%s\n' "$_STATUS_RESOLVED_ACFS_HOME"
-        return 0
-    fi
-
     if [[ "$_STATUS_SYSTEM_STATE_WAS_EXPLICIT" == true ]]; then
         target_home=$(_status_read_target_home_from_state "$_STATUS_SYSTEM_STATE_FILE" 2>/dev/null || true)
         if [[ -n "$target_home" ]]; then
@@ -911,6 +914,13 @@ _status_resolve_acfs_home() {
 
     if [[ -n "$_STATUS_EXPLICIT_ACFS_HOME" ]] && [[ -f "$_STATUS_EXPLICIT_ACFS_HOME/state.json" || -f "$_STATUS_EXPLICIT_ACFS_HOME/VERSION" || -d "$_STATUS_EXPLICIT_ACFS_HOME/onboard" ]]; then
         _STATUS_RESOLVED_ACFS_HOME="$_STATUS_EXPLICIT_ACFS_HOME"
+        printf '%s\n' "$_STATUS_RESOLVED_ACFS_HOME"
+        return 0
+    fi
+
+    candidate="$(_status_current_home_acfs_candidate 2>/dev/null || true)"
+    if [[ -n "$candidate" ]]; then
+        _STATUS_RESOLVED_ACFS_HOME="$candidate"
         printf '%s\n' "$_STATUS_RESOLVED_ACFS_HOME"
         return 0
     fi

@@ -293,21 +293,25 @@ home_for_user() {
         return 0
     fi
 
-    passwd_entry="$(continue_getent_passwd_entry "$user" 2>/dev/null || true)"
-    if [[ -n "$passwd_entry" ]]; then
-        home_candidate="$(continue_passwd_home_from_entry "$passwd_entry" 2>/dev/null || true)"
+    current_user="$(continue_resolve_current_user 2>/dev/null || true)"
+    if [[ "$user" == "$current_user" ]]; then
+        home_candidate="${_CONTINUE_CURRENT_HOME:-}"
+        if [[ "${_CONTINUE_WAS_SOURCED:-false}" == "true" ]] && [[ -n "$home_candidate" ]]; then
+            printf '%s\n' "$home_candidate"
+            return 0
+        fi
+        if [[ -z "$home_candidate" ]]; then
+            home_candidate="$(continue_sanitize_abs_nonroot_path "${HOME:-}" 2>/dev/null || true)"
+        fi
         if [[ -n "$home_candidate" ]]; then
             printf '%s\n' "$home_candidate"
             return 0
         fi
     fi
 
-    current_user="$(continue_resolve_current_user 2>/dev/null || true)"
-    if [[ "$user" == "$current_user" ]]; then
-        home_candidate="${_CONTINUE_CURRENT_HOME:-}"
-        if [[ -z "$home_candidate" ]]; then
-            home_candidate="$(continue_sanitize_abs_nonroot_path "${HOME:-}" 2>/dev/null || true)"
-        fi
+    passwd_entry="$(continue_getent_passwd_entry "$user" 2>/dev/null || true)"
+    if [[ -n "$passwd_entry" ]]; then
+        home_candidate="$(continue_passwd_home_from_entry "$passwd_entry" 2>/dev/null || true)"
         if [[ -n "$home_candidate" ]]; then
             printf '%s\n' "$home_candidate"
             return 0
@@ -319,13 +323,23 @@ home_for_user() {
 
 continue_resolve_explicit_target_home() {
     local target_home=""
+    local resolved_home=""
 
     if [[ -n "$_CONTINUE_EXPLICIT_TARGET_USER_RAW" ]]; then
         continue_is_valid_username "$_CONTINUE_EXPLICIT_TARGET_USER_RAW" || return 1
-        target_home="$(continue_existing_abs_home "$(home_for_user "$_CONTINUE_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
-        [[ -n "$target_home" ]] || return 1
-        printf '%s\n' "${target_home%/}"
-        return 0
+        resolved_home="$(continue_existing_abs_home "$(home_for_user "$_CONTINUE_EXPLICIT_TARGET_USER_RAW" 2>/dev/null || true)" 2>/dev/null || true)"
+        if [[ -n "$resolved_home" ]]; then
+            printf '%s\n' "${resolved_home%/}"
+            return 0
+        fi
+        target_home="$_CONTINUE_EXPLICIT_TARGET_HOME"
+        if [[ -n "$target_home" ]] && [[ "$target_home" != "${_CONTINUE_CURRENT_HOME:-}" ]] && {
+            [[ -f "$target_home/.acfs/state.json" ]] || [[ -f "$target_home/.acfs/VERSION" ]] || [[ -d "$target_home/.acfs/logs" ]] || [[ -f "$target_home/.acfs/scripts/lib/continue.sh" ]]
+        }; then
+            printf '%s\n' "${target_home%/}"
+            return 0
+        fi
+        return 1
     fi
 
     target_home="$_CONTINUE_EXPLICIT_TARGET_HOME"
@@ -492,10 +506,13 @@ get_install_state_file() {
         return 1
     fi
 
-    candidate="$(current_user_state_file 2>/dev/null || true)"
-    if [[ -n "$candidate" ]] && [[ -f "$candidate" ]]; then
-        echo "$candidate"
-        return 0
+    target_home=$(read_target_home_from_state "$_CONTINUE_SYSTEM_STATE_FILE" || true)
+    if [[ -n "$target_home" ]]; then
+        candidate="${target_home}/.acfs/state.json"
+        if [[ -f "$candidate" ]]; then
+            echo "$candidate"
+            return 0
+        fi
     fi
 
     if [[ -n "${SUDO_USER:-}" ]]; then
@@ -507,13 +524,10 @@ get_install_state_file() {
         fi
     fi
 
-    target_home=$(read_target_home_from_state "$_CONTINUE_SYSTEM_STATE_FILE" || true)
-    if [[ -n "$target_home" ]]; then
-        candidate="${target_home}/.acfs/state.json"
-        if [[ -f "$candidate" ]]; then
-            echo "$candidate"
-            return 0
-        fi
+    candidate="$(current_user_state_file 2>/dev/null || true)"
+    if [[ -n "$candidate" ]] && [[ -f "$candidate" ]]; then
+        echo "$candidate"
+        return 0
     fi
 
     target_user=$(read_target_user_from_state "$_CONTINUE_SYSTEM_STATE_FILE" || true)

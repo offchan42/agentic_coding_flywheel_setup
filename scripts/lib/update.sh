@@ -654,6 +654,10 @@ update_tool_binary_path() {
             [[ -n "$primary_bin" ]] && candidates+=("$primary_bin/zoxide")
             [[ -n "$user_bin" ]] && candidates+=("$user_bin/zoxide")
             ;;
+        uv)
+            [[ -n "$primary_bin" ]] && candidates+=("$primary_bin/uv")
+            [[ -n "$user_bin" ]] && candidates+=("$user_bin/uv")
+            ;;
         *)
             ;;
     esac
@@ -1224,6 +1228,37 @@ update_repair_zoxide_install() {
 
     local resolved_bin=""
     resolved_bin="$(update_tool_binary_path "zoxide" 2>/dev/null || true)"
+    [[ -n "$resolved_bin" && -x "$resolved_bin" ]] || return 1
+    "$resolved_bin" --version >/dev/null 2>&1
+}
+
+update_repair_uv_install() {
+    local primary_dir=""
+    local user_bin=""
+
+    primary_dir="$(update_preferred_user_bin_dir 2>/dev/null || true)"
+    user_bin="$(update_default_user_bin_dir 2>/dev/null || true)"
+
+    # The official uv installer writes uv/uvx to ~/.local/bin by default.
+    # If ACFS has a custom bin_dir earlier in PATH, keep that directory pointed
+    # at the freshly installed target-user binaries.
+    if [[ -n "$primary_dir" && -n "$user_bin" && "$primary_dir" != "$user_bin" ]]; then
+        local preferred_src=""
+        local binary_name=""
+        mkdir -p "$primary_dir" 2>/dev/null || true
+        for binary_name in uv uvx; do
+            preferred_src="$user_bin/$binary_name"
+            [[ -x "$preferred_src" ]] || continue
+            if ln -sf "$preferred_src" "$primary_dir/$binary_name" 2>/dev/null; then
+                log_to_file "uv symlink normalized: $primary_dir/$binary_name -> $preferred_src"
+            fi
+        done
+    fi
+
+    hash -r 2>/dev/null || true
+
+    local resolved_bin=""
+    resolved_bin="$(update_tool_binary_path "uv" 2>/dev/null || true)"
     [[ -n "$resolved_bin" && -x "$resolved_bin" ]] || return 1
     "$resolved_bin" --version >/dev/null 2>&1
 }
@@ -4657,7 +4692,7 @@ update_uv() {
 
     if ! run_cmd_attempt_with_retry "uv self-update" "$uv_bin" self update; then
         if update_require_security; then
-            run_cmd_with_retry_status "uv verified installer fallback" update_run_verified_installer uv || true
+            update_run_verified_installer_with_shell_repair "uv verified installer fallback" "uv" update_repair_uv_install || true
         else
             log_item "fail" "uv self-update" "failed and checksum-verified installer fallback is unavailable"
         fi

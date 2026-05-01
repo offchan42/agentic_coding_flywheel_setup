@@ -1446,6 +1446,41 @@ EOF
     assert_output "$HOME/.local/bin/zoxide"
 }
 
+@test "update_repair_uv_install: normalizes custom shim to target local bin" {
+    export ACFS_BIN_DIR="$HOME/custom-bin"
+    mkdir -p "$HOME/.local/bin" "$ACFS_BIN_DIR"
+
+    cat > "$HOME/.local/bin/uv" <<'EOF'
+#!/usr/bin/env bash
+echo "uv 0.8.0"
+EOF
+    chmod +x "$HOME/.local/bin/uv"
+
+    cat > "$HOME/.local/bin/uvx" <<'EOF'
+#!/usr/bin/env bash
+echo "uvx 0.8.0"
+EOF
+    chmod +x "$HOME/.local/bin/uvx"
+
+    cat > "$ACFS_BIN_DIR/uv" <<'EOF'
+#!/usr/bin/env bash
+echo "uv 0.7.0"
+EOF
+    chmod +x "$ACFS_BIN_DIR/uv"
+
+    run update_repair_uv_install
+    assert_success
+
+    [[ -L "$ACFS_BIN_DIR/uv" ]]
+    [[ -L "$ACFS_BIN_DIR/uvx" ]]
+
+    run readlink "$ACFS_BIN_DIR/uv"
+    assert_output "$HOME/.local/bin/uv"
+
+    run readlink "$ACFS_BIN_DIR/uvx"
+    assert_output "$HOME/.local/bin/uvx"
+}
+
 @test "install_atuin: does not skip target install because of a global atuin or partial target dir" {
     source_lib "cli_tools"
     init_stub_dir
@@ -9734,7 +9769,7 @@ EOF
     assert_success
     run grep -F 'run_cmd_attempt_with_retry "uv self-update"' "$update"
     assert_success
-    run grep -F 'run_cmd_with_retry_status "uv verified installer fallback" update_run_verified_installer uv' "$update"
+    run grep -F 'update_run_verified_installer_with_shell_repair "uv verified installer fallback" "uv" update_repair_uv_install' "$update"
     assert_success
 }
 

@@ -1782,6 +1782,79 @@ EOF
     cleanup_mock_env
 }
 
+test_notifications_cli_reports_config_write_failure_when_sourced() {
+    setup_mock_env
+
+    local target_home="$TEST_HOME/notifications-target"
+    local output=""
+
+    mkdir -p "$target_home/.config/acfs"
+    cat > "$target_home/.config/acfs/config.yaml" <<'EOF'
+ntfy_enabled: true
+ntfy_topic: cli-topic
+EOF
+
+    output=$(cd "$TEST_HOME" && HOME="$target_home" TARGET_HOME="$target_home" \
+        TMPDIR="$TEST_HOME/missing-tmp" bash -c '
+            source "$1"
+            status=0
+            cmd_disable || status=$?
+            printf "status=%s\n" "$status"
+            cat "$ACFS_CONFIG_FILE"
+        ' _ "$NOTIFICATIONS_SH" 2>&1)
+
+    if [[ "$output" == *"Error: Unable to create temporary notification config file."* ]] \
+        && [[ "$output" == *"status=1"* ]] \
+        && [[ "$output" == *"ntfy_enabled: true"* ]] \
+        && [[ "$output" != *"Notifications disabled."* ]]; then
+        harness_pass "notifications CLI reports config write failure when sourced"
+    else
+        harness_fail "notifications CLI reports config write failure when sourced" "$output"
+    fi
+
+    cleanup_mock_env
+}
+
+test_notifications_cli_rejects_unsafe_topic_and_server_values() {
+    setup_mock_env
+
+    local target_home="$TEST_HOME/notifications-target"
+    local output=""
+
+    mkdir -p "$target_home/.config/acfs"
+    cat > "$target_home/.config/acfs/config.yaml" <<'EOF'
+ntfy_enabled: true
+ntfy_topic: cli-topic
+ntfy_server: https://ntfy.example
+EOF
+
+    output=$(cd "$TEST_HOME" && HOME="$target_home" TARGET_HOME="$target_home" \
+        bash -c '
+            source "$1"
+            topic_status=0
+            cmd_set_topic "$2" || topic_status=$?
+            server_status=0
+            cmd_set_server "$3" || server_status=$?
+            printf "topic_status=%s\nserver_status=%s\n" "$topic_status" "$server_status"
+            cat "$ACFS_CONFIG_FILE"
+        ' _ "$NOTIFICATIONS_SH" $'bad\nntfy_enabled: false' $'https://ntfy.example\nntfy_enabled: false' 2>&1)
+
+    if [[ "$output" == *"Error: Topic must be 1-128 characters"* ]] \
+        && [[ "$output" == *"Error: Server URL must be an http(s) base URL"* ]] \
+        && [[ "$output" == *"topic_status=1"* ]] \
+        && [[ "$output" == *"server_status=1"* ]] \
+        && [[ "$output" == *"ntfy_enabled: true"* ]] \
+        && [[ "$output" == *"ntfy_topic: cli-topic"* ]] \
+        && [[ "$output" == *"ntfy_server: https://ntfy.example"* ]] \
+        && [[ "$output" != *"ntfy_enabled: false"* ]]; then
+        harness_pass "notifications CLI rejects unsafe topic and server values"
+    else
+        harness_fail "notifications CLI rejects unsafe topic and server values" "$output"
+    fi
+
+    cleanup_mock_env
+}
+
 test_autofix_uses_target_home_for_state_dir_when_home_is_relative() {
     setup_mock_env
 
@@ -11370,6 +11443,8 @@ main() {
     test_notifications_cli_uses_target_home_when_home_is_relative || true
     test_notifications_cli_source_preserves_shell_options || true
     test_notifications_cli_sanitizes_headers_before_curl || true
+    test_notifications_cli_reports_config_write_failure_when_sourced || true
+    test_notifications_cli_rejects_unsafe_topic_and_server_values || true
 
     harness_section "Autofix"
     test_autofix_uses_target_home_for_state_dir_when_home_is_relative || true

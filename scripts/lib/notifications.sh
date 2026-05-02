@@ -242,17 +242,33 @@ _notif_config_write() {
     local key="$1"
     local value="$2"
 
+    if [[ ! "$key" =~ ^[A-Za-z0-9_]+$ ]]; then
+        echo "Error: Invalid notification config key." >&2
+        return 1
+    fi
+
+    if [[ "$value" =~ [[:cntrl:]] ]]; then
+        echo "Error: Notification config values must not contain control characters." >&2
+        return 1
+    fi
+
     if [[ -z "$ACFS_CONFIG_DIR" || -z "$ACFS_CONFIG_FILE" ]]; then
         echo "Error: Unable to resolve ACFS notification config directory." >&2
         return 1
     fi
 
     # Ensure config dir exists
-    mkdir -p "$ACFS_CONFIG_DIR"
+    if ! mkdir -p "$ACFS_CONFIG_DIR"; then
+        echo "Error: Unable to create notification config directory: $ACFS_CONFIG_DIR" >&2
+        return 1
+    fi
 
     if [[ ! -f "$ACFS_CONFIG_FILE" ]]; then
         # Create new config file
-        printf '%s: %s\n' "$key" "$value" > "$ACFS_CONFIG_FILE"
+        if ! printf '%s: %s\n' "$key" "$value" > "$ACFS_CONFIG_FILE"; then
+            echo "Error: Unable to write notification config file: $ACFS_CONFIG_FILE" >&2
+            return 1
+        fi
         return 0
     fi
 
@@ -260,20 +276,30 @@ _notif_config_write() {
     if grep -qE "^\s*${key}\s*:" "$ACFS_CONFIG_FILE" 2>/dev/null; then
         # Update existing key in-place (avoid sed delimiter and backreference bugs)
         local temp_file
-        temp_file=$(mktemp "${TMPDIR:-/tmp}/acfs_config.XXXXXX" 2>/dev/null) || temp_file=""
-        if [[ -n "$temp_file" ]]; then
-            while IFS= read -r line || [[ -n "$line" ]]; do
-                if [[ "$line" =~ ^[[:space:]]*${key}[[:space:]]*: ]]; then
-                    printf '%s: %s\n' "$key" "$value"
-                else
-                    printf '%s\n' "$line"
-                fi
-            done < "$ACFS_CONFIG_FILE" > "$temp_file"
-            mv "$temp_file" "$ACFS_CONFIG_FILE"
+        if ! temp_file=$(mktemp "${TMPDIR:-/tmp}/acfs_config.XXXXXX" 2>/dev/null); then
+            echo "Error: Unable to create temporary notification config file." >&2
+            return 1
+        fi
+        if ! while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" =~ ^[[:space:]]*${key}[[:space:]]*: ]]; then
+                printf '%s: %s\n' "$key" "$value"
+            else
+                printf '%s\n' "$line"
+            fi
+        done < "$ACFS_CONFIG_FILE" > "$temp_file"; then
+            echo "Error: Unable to update notification config file: $ACFS_CONFIG_FILE" >&2
+            return 1
+        fi
+        if ! mv "$temp_file" "$ACFS_CONFIG_FILE"; then
+            echo "Error: Unable to replace notification config file: $ACFS_CONFIG_FILE" >&2
+            return 1
         fi
     else
         # Append new key
-        printf '%s: %s\n' "$key" "$value" >> "$ACFS_CONFIG_FILE"
+        if ! printf '%s: %s\n' "$key" "$value" >> "$ACFS_CONFIG_FILE"; then
+            echo "Error: Unable to append notification config file: $ACFS_CONFIG_FILE" >&2
+            return 1
+        fi
     fi
 }
 
@@ -301,6 +327,24 @@ notifications_priority_is_valid() {
             return 1
             ;;
     esac
+}
+
+notifications_topic_is_valid() {
+    local topic="${1:-}"
+
+    [[ -n "$topic" ]] || return 1
+    [[ ${#topic} -le 128 ]] || return 1
+    [[ "$topic" =~ ^[A-Za-z0-9._-]+$ ]]
+}
+
+notifications_server_is_valid() {
+    local server="${1:-}"
+
+    [[ -n "$server" ]] || return 1
+    [[ ! "$server" =~ [[:cntrl:][:space:]] ]] || return 1
+    [[ "$server" != *"?"* ]] || return 1
+    [[ "$server" != *"#"* ]] || return 1
+    [[ "$server" =~ ^https?://[^/]+(/[^[:space:]]*)?$ ]]
 }
 
 # Generate a random topic string: acfs-HOSTNAME-RANDOM8
@@ -338,10 +382,19 @@ cmd_enable() {
         server="$ACFS_NTFY_SERVER_DEFAULT"
     fi
 
+    if ! notifications_topic_is_valid "$topic"; then
+        echo "Error: Configured ntfy topic contains unsupported characters."
+        return 1
+    fi
+    if ! notifications_server_is_valid "$server"; then
+        echo "Error: Configured ntfy server URL is invalid."
+        return 1
+    fi
+
     # Write config
-    _notif_config_write "ntfy_enabled" "true"
-    _notif_config_write "ntfy_topic" "$topic"
-    _notif_config_write "ntfy_server" "$server"
+    _notif_config_write "ntfy_topic" "$topic" || return 1
+    _notif_config_write "ntfy_server" "$server" || return 1
+    _notif_config_write "ntfy_enabled" "true" || return 1
 
     echo "Notifications enabled!"
     echo ""
@@ -358,7 +411,7 @@ cmd_enable() {
 }
 
 cmd_disable() {
-    _notif_config_write "ntfy_enabled" "false"
+    _notif_config_write "ntfy_enabled" "false" || return 1
     echo "Notifications disabled."
 }
 
@@ -378,6 +431,14 @@ cmd_test() {
 
     if [[ -z "$topic" ]]; then
         echo "Error: No topic configured. Run 'acfs notifications enable' first."
+        return 1
+    fi
+    if ! notifications_topic_is_valid "$topic"; then
+        echo "Error: Configured ntfy topic contains unsupported characters."
+        return 1
+    fi
+    if ! notifications_server_is_valid "$server"; then
+        echo "Error: Configured ntfy server URL is invalid."
         return 1
     fi
 
@@ -456,6 +517,14 @@ cmd_topic() {
         echo "No topic configured. Run 'acfs notifications enable' first."
         return 1
     fi
+    if ! notifications_topic_is_valid "$topic"; then
+        echo "Error: Configured ntfy topic contains unsupported characters."
+        return 1
+    fi
+    if ! notifications_server_is_valid "$server"; then
+        echo "Error: Configured ntfy server URL is invalid."
+        return 1
+    fi
 
     echo "${server}/${topic}"
 }
@@ -469,16 +538,15 @@ cmd_set_server() {
         return 1
     fi
 
-    # Basic URL validation
-    if [[ ! "$new_server" =~ ^https?:// ]]; then
-        echo "Error: Server URL must start with http:// or https://"
-        return 1
-    fi
-
     # Strip trailing slash
     new_server="${new_server%/}"
 
-    _notif_config_write "ntfy_server" "$new_server"
+    if ! notifications_server_is_valid "$new_server"; then
+        echo "Error: Server URL must be an http(s) base URL without whitespace, query, or fragment"
+        return 1
+    fi
+
+    _notif_config_write "ntfy_server" "$new_server" || return 1
     echo "ntfy server set to: ${new_server}"
 
     local topic
@@ -503,7 +571,7 @@ cmd_set_priority() {
         return 1
     fi
 
-    _notif_config_write "ntfy_priority" "$new_priority"
+    _notif_config_write "ntfy_priority" "$new_priority" || return 1
     echo "Default notification priority set to: ${new_priority}"
 }
 
@@ -516,7 +584,12 @@ cmd_set_topic() {
         return 1
     fi
 
-    _notif_config_write "ntfy_topic" "$new_topic"
+    if ! notifications_topic_is_valid "$new_topic"; then
+        echo "Error: Topic must be 1-128 characters and contain only letters, numbers, dot, underscore, or hyphen"
+        return 1
+    fi
+
+    _notif_config_write "ntfy_topic" "$new_topic" || return 1
     echo "ntfy topic set to: ${new_topic}"
 
     local server
@@ -556,6 +629,14 @@ cmd_send() {
 
     if [[ -z "$topic" ]]; then
         echo "Error: No topic configured. Run 'acfs notifications enable' first."
+        return 1
+    fi
+    if ! notifications_topic_is_valid "$topic"; then
+        echo "Error: Configured ntfy topic contains unsupported characters."
+        return 1
+    fi
+    if ! notifications_server_is_valid "$server"; then
+        echo "Error: Configured ntfy server URL is invalid."
         return 1
     fi
 

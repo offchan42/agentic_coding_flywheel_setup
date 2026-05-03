@@ -8229,7 +8229,7 @@ test_selected_system_binary_resolvers_reject_pathlike_names() {
             FUNCTION_BODY="$function_body" FUNCTION_NAME="$function_name" bash -c '
                 set -euo pipefail
                 eval "$FUNCTION_BODY"
-                for unsafe_name in "../bash" "/bin/bash" "bash/../sh" "bash name"; do
+                for unsafe_name in "." ".." "../bash" "/bin/bash" "bash/../sh" "bash name"; do
                     if "$FUNCTION_NAME" "$unsafe_name" >/dev/null 2>&1; then
                         printf "%s accepted unsafe name: %s\n" "$FUNCTION_NAME" "$unsafe_name" >&2
                         exit 1

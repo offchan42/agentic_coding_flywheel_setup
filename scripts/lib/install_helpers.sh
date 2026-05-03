@@ -653,6 +653,11 @@ if ! declare -f _acfs_system_binary_path >/dev/null 2>&1; then
         local candidate=""
 
         [[ -n "$name" ]] || return 1
+        case "$name" in
+            *[!A-Za-z0-9._+-]*)
+                return 1
+                ;;
+        esac
 
         for candidate in \
             "/usr/bin/$name" \

@@ -8206,6 +8206,55 @@ EOF
     fi
 }
 
+test_selected_system_binary_resolvers_reject_pathlike_names() {
+    local failures=""
+
+    while IFS='|' read -r label script_path function_name; do
+        [[ -n "$label" ]] || continue
+        local function_body=""
+        local resolver_output=""
+        function_body="$(
+            awk -v fn="$function_name" '
+                $0 ~ "^[[:space:]]*" fn "\\(\\)[[:space:]]*\\{" { in_function = 1 }
+                in_function { print }
+                in_function && $0 ~ "^[[:space:]]*}[[:space:]]*$" { exit }
+            ' "$script_path"
+        )"
+        if [[ -z "$function_body" ]]; then
+            printf -v failures '%s%s missing function %s\n' "$failures" "$label" "$function_name"
+            continue
+        fi
+
+        if ! resolver_output="$(
+            FUNCTION_BODY="$function_body" FUNCTION_NAME="$function_name" bash -c '
+                set -euo pipefail
+                eval "$FUNCTION_BODY"
+                for unsafe_name in "../bash" "/bin/bash" "bash/../sh" "bash name"; do
+                    if "$FUNCTION_NAME" "$unsafe_name" >/dev/null 2>&1; then
+                        printf "%s accepted unsafe name: %s\n" "$FUNCTION_NAME" "$unsafe_name" >&2
+                        exit 1
+                    fi
+                done
+            ' 2>&1
+        )"; then
+            printf -v failures '%s%s accepted pathlike system binary names: %s\n' "$failures" "$label" "$resolver_output"
+        fi
+    done <<EOF
+acfs-update|$REPO_ROOT/scripts/acfs-update|system_binary_path
+acfs-global|$REPO_ROOT/scripts/acfs-global|system_binary_path
+install-helpers|$REPO_ROOT/scripts/lib/install_helpers.sh|_acfs_system_binary_path
+update-early-lib|$REPO_ROOT/scripts/lib/update.sh|_update_early_system_binary_path
+update-system-lib|$REPO_ROOT/scripts/lib/update.sh|update_system_binary_path
+stack-lib|$REPO_ROOT/scripts/lib/stack.sh|_stack_system_binary_path
+EOF
+
+    if [[ -z "$failures" ]]; then
+        harness_pass "selected system binary resolvers reject pathlike names"
+    else
+        harness_fail "selected system binary resolvers reject pathlike names" "$failures"
+    fi
+}
+
 test_acfs_update_wrapper_uses_system_state_target_home_when_getent_unavailable() {
     setup_system_state_target_home_only_env
 
@@ -11667,6 +11716,7 @@ main() {
     test_acfs_wrappers_prefer_passwd_home_over_mismatched_absolute_home || true
     test_acfs_wrappers_ignore_poisoned_current_user_path_tools || true
     test_acfs_system_binary_resolvers_cover_usr_local || true
+    test_selected_system_binary_resolvers_reject_pathlike_names || true
     test_doctor_manifest_checks_prefer_system_bins_over_current_shell_path || true
     test_doctor_manifest_checks_fail_closed_when_target_home_is_unresolved || true
     test_doctor_manifest_checks_reject_invalid_target_user_before_sudo || true

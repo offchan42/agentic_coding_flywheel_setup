@@ -1,4 +1,4 @@
-# checksums.yaml - Auto-generated 2026-05-04T01:03:52-04:00
+# checksums.yaml - Auto-generated 2026-05-04T19:36:20+00:00
 # Run: ./scripts/lib/security.sh --update-checksums
 
 installers:
@@ -80,7 +80,7 @@ installers:
 
   mcp_agent_mail:
     url: "https://raw.githubusercontent.com/Dicklesworthstone/mcp_agent_mail_rust/refs/heads/main/install.sh"
-    sha256: "a4712c0425943618c4c5ccc58b90e4c07f36781d27002c6e7cdcbc4c2b89689c"
+    sha256: "7622f9c5295c764ba9ca212395cf4eb3d0434dbbfa3625f67da328b49706142d"
 
   mdwb:
     url: "https://raw.githubusercontent.com/Dicklesworthstone/markdown_web_browser/main/install.sh"
@@ -165,3 +165,4 @@ installers:
   zoxide:
     url: "https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh"
     sha256: "0c25aed6cce9d56ee0596c9a5df8cbe99ffd0f7a7054de0262234dd268b61404"
+

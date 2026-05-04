@@ -2650,6 +2650,14 @@ sync_acfs_deployed() {
         git -C "$ACFS_REPO_ROOT" ls-tree "$source_ref" -- "$repo_rel" 2>/dev/null | awk 'NR == 1 { print $1 }'
     }
 
+    _acfs_deployed_target_mode_override() {
+        local deployed_rel="$1"
+
+        case "$deployed_rel" in
+            bin/acfs) printf '%s\n' "755" ;;
+        esac
+    }
+
     local synced=0
     _acfs_sync_deployed_file() {
         local repo_rel="$1"
@@ -2659,6 +2667,7 @@ sync_acfs_deployed() {
         local source_tmp=""
         local source_label="$repo_rel"
         local source_mode=""
+        local target_mode_override=""
 
         if _acfs_deployed_path_is_git_tracked "$acfs_home" "$deployed_rel"; then
             log_to_file "Skipped syncing $source_label -> $deployed_file (target is git-managed)"
@@ -2678,6 +2687,7 @@ sync_acfs_deployed() {
             source_file="$ACFS_REPO_ROOT/$repo_rel"
             [[ -f "$source_file" ]] || return 0
         fi
+        target_mode_override="$(_acfs_deployed_target_mode_override "$deployed_rel")"
 
         # Skip if identical
         if [[ -f "$deployed_file" ]] && cmp -s "$source_file" "$deployed_file"; then
@@ -2698,10 +2708,12 @@ sync_acfs_deployed() {
 
         mkdir -p "$(dirname "$deployed_file")"
         cp "$source_file" "$deployed_file"
-        if [[ -n "$source_ref" ]]; then
+        if [[ -n "$target_mode_override" ]]; then
+            chmod "$target_mode_override" "$deployed_file" 2>/dev/null || true
+        elif [[ -n "$source_ref" ]]; then
             case "$source_mode" in
-                100755) chmod 755 "$deployed_file" ;;
-                100644) chmod 644 "$deployed_file" ;;
+                100755) chmod 755 "$deployed_file" 2>/dev/null || true ;;
+                100644) chmod 644 "$deployed_file" 2>/dev/null || true ;;
             esac
         else
             chmod --reference="$source_file" "$deployed_file" 2>/dev/null || true

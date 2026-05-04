@@ -7153,12 +7153,13 @@ EOF
     deployed_home="$temp_root/deployed-acfs"
     log_file="$temp_root/update.log"
 
-    mkdir -p "$seed_repo/scripts/lib" "$deployed_home/scripts/lib"
+    mkdir -p "$seed_repo/scripts/lib" "$deployed_home/scripts/lib" "$deployed_home/bin"
     git -C "$seed_repo" init -b main >/dev/null
     git -C "$seed_repo" config user.email test@example.invalid
     git -C "$seed_repo" config user.name "ACFS Test"
+    printf "#!/usr/bin/env bash\nprintf 'fresh-acfs-doctor\\n'\n" > "$seed_repo/scripts/lib/doctor.sh"
     printf "fresh-stack-lib\n" > "$seed_repo/scripts/lib/stack.sh"
-    git -C "$seed_repo" add scripts/lib/stack.sh
+    git -C "$seed_repo" add scripts/lib/doctor.sh scripts/lib/stack.sh
     git -C "$seed_repo" commit -m base >/dev/null
 
     git clone --bare "$seed_repo" "$origin_repo" >/dev/null 2>&1
@@ -7186,6 +7187,10 @@ EOF
     run cat "$deployed_home/scripts/lib/stack.sh"
     assert_success
     assert_output "fresh-stack-lib"
+    run "$deployed_home/bin/acfs"
+    assert_success
+    assert_output "fresh-acfs-doctor"
+    [[ -x "$deployed_home/bin/acfs" ]]
     run grep -F "Synced scripts/lib/stack.sh -> $deployed_home/scripts/lib/stack.sh" "$log_file"
     assert_success
 }
@@ -7206,27 +7211,31 @@ EOF
     deployed_home="$temp_root/deployed-acfs"
     log_file="$temp_root/update.log"
 
-    mkdir -p "$seed_repo/scripts/lib" "$seed_repo/scripts/generated" "$deployed_home/scripts/lib" "$deployed_home/scripts/generated"
+    mkdir -p "$seed_repo/scripts/lib" "$seed_repo/scripts/generated" "$deployed_home/bin" "$deployed_home/scripts/lib" "$deployed_home/scripts/generated"
     git -C "$seed_repo" init -b main >/dev/null
     git -C "$seed_repo" config user.email test@example.invalid
     git -C "$seed_repo" config user.name "ACFS Test"
+    printf "#!/usr/bin/env bash\nprintf 'base-acfs-doctor\\n'\n" > "$seed_repo/scripts/lib/doctor.sh"
     printf "base-update\n" > "$seed_repo/scripts/lib/update.sh"
     printf "base-stack-lib\n" > "$seed_repo/scripts/lib/stack.sh"
     printf "base-generated\n" > "$seed_repo/scripts/generated/install_stack.sh"
-    git -C "$seed_repo" add scripts/lib/update.sh scripts/lib/stack.sh scripts/generated/install_stack.sh
+    git -C "$seed_repo" add scripts/lib/doctor.sh scripts/lib/update.sh scripts/lib/stack.sh scripts/generated/install_stack.sh
     git -C "$seed_repo" commit -m base >/dev/null
 
     git clone --bare "$seed_repo" "$origin_repo" >/dev/null 2>&1
     git clone "$origin_repo" "$work_repo" >/dev/null 2>&1
     git -C "$seed_repo" remote add origin "$origin_repo"
 
+    printf "#!/usr/bin/env bash\nprintf 'remote-acfs-doctor\\n'\n" > "$seed_repo/scripts/lib/doctor.sh"
     printf "remote-stack-lib\n" > "$seed_repo/scripts/lib/stack.sh"
     printf "remote-generated\n" > "$seed_repo/scripts/generated/install_stack.sh"
-    git -C "$seed_repo" add scripts/lib/stack.sh scripts/generated/install_stack.sh
+    git -C "$seed_repo" add scripts/lib/doctor.sh scripts/lib/stack.sh scripts/generated/install_stack.sh
     git -C "$seed_repo" commit -m "remote runtime update" >/dev/null
     git -C "$seed_repo" push origin main >/dev/null 2>&1
 
     printf "local-dirty-update\n" > "$work_repo/scripts/lib/update.sh"
+    printf "#!/usr/bin/env bash\nprintf 'stale-acfs-doctor\\n'\n" > "$deployed_home/bin/acfs"
+    chmod 644 "$deployed_home/bin/acfs"
     printf "stale-stack-lib\n" > "$deployed_home/scripts/lib/stack.sh"
     printf "stale-generated\n" > "$deployed_home/scripts/generated/install_stack.sh"
     local_head="$(git -C "$work_repo" rev-parse HEAD)"
@@ -7251,10 +7260,17 @@ EOF
     assert_success
     assert_output --partial "warn|ACFS self-update|tracked files have local modifications; skipping full pull"
     [[ "$(git -C "$work_repo" rev-parse HEAD)" == "$local_head" ]]
+    [[ "$(bash "$work_repo/scripts/lib/doctor.sh")" == "base-acfs-doctor" ]]
     [[ "$(cat "$work_repo/scripts/lib/stack.sh")" == "base-stack-lib" ]]
     [[ "$(cat "$work_repo/scripts/generated/install_stack.sh")" == "base-generated" ]]
     [[ "$(cat "$work_repo/scripts/lib/update.sh")" == "local-dirty-update" ]]
 
+    run "$deployed_home/bin/acfs"
+    assert_success
+    assert_output "remote-acfs-doctor"
+    [[ -x "$deployed_home/bin/acfs" ]]
+    run grep -F "Synced origin/main:scripts/lib/doctor.sh -> $deployed_home/bin/acfs" "$log_file"
+    assert_success
     run cat "$deployed_home/scripts/lib/stack.sh"
     assert_success
     assert_output "remote-stack-lib"

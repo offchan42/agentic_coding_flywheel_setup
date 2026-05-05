@@ -9,7 +9,13 @@
 # When executed directly, strict mode is enabled in the entrypoint below.
 # ============================================================
 
-SECURITY_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_acfs_security_source="${BASH_SOURCE[0]}"
+_acfs_security_source_dir="."
+case "$_acfs_security_source" in
+    */*) _acfs_security_source_dir="${_acfs_security_source%/*}" ;;
+esac
+SECURITY_SCRIPT_DIR="$(cd "$_acfs_security_source_dir" && pwd -P)"
+unset _acfs_security_source _acfs_security_source_dir
 
 # Ensure we have logging functions available
 if [[ -z "${ACFS_BLUE:-}" ]]; then
@@ -82,6 +88,19 @@ acfs_security_curl_binary_path() {
     acfs_security_system_binary_path curl
 }
 
+acfs_security_required_binary_path() {
+    local name="${1:-}"
+    local path=""
+
+    path="$(acfs_security_system_binary_path "$name" 2>/dev/null || true)"
+    if [[ -z "$path" ]]; then
+        log_error "No trusted $name binary available"
+        return 127
+    fi
+
+    printf '%s\n' "$path"
+}
+
 acfs_security_hash_tool() {
     local sha256sum_bin=""
     local shasum_bin=""
@@ -99,6 +118,53 @@ acfs_security_hash_tool() {
     fi
 
     return 1
+}
+
+acfs_security_mktemp() {
+    local mktemp_bin=""
+
+    mktemp_bin="$(acfs_security_required_binary_path mktemp)" || return $?
+    if [[ "$#" -gt 0 ]]; then
+        "$mktemp_bin" "$@"
+    else
+        "$mktemp_bin"
+    fi
+}
+
+acfs_security_cat_file() {
+    local cat_bin=""
+    local file="${1:-}"
+
+    [[ -r "$file" ]] || {
+        log_error "Cannot read file: $file"
+        return 1
+    }
+
+    cat_bin="$(acfs_security_required_binary_path cat)" || return $?
+    "$cat_bin" "$file"
+}
+
+acfs_security_mkdir_p() {
+    local mkdir_bin=""
+    local dir="${1:-}"
+
+    [[ -n "$dir" ]] || return 1
+    mkdir_bin="$(acfs_security_required_binary_path mkdir)" || return $?
+    "$mkdir_bin" -p "$dir"
+}
+
+acfs_security_sort_lines() {
+    local sort_bin=""
+
+    sort_bin="$(acfs_security_required_binary_path sort)" || return $?
+    "$sort_bin"
+}
+
+acfs_security_date() {
+    local date_bin=""
+
+    date_bin="$(acfs_security_required_binary_path date)" || return $?
+    "$date_bin" "$@"
 }
 
 # Check if running in interactive mode
@@ -167,9 +233,14 @@ acfs_download_to_file() {
     local url="$1"
     local output_path="$2"
     local name="${3:-$url}"
+    local output_dir="${output_path%/*}"
+
+    if [[ "$output_dir" == "$output_path" ]]; then
+        output_dir="."
+    fi
 
     # Ensure parent dir exists
-    mkdir -p "$(dirname "$output_path")"
+    acfs_security_mkdir_p "$output_dir" || return $?
 
     # Use GitHub-specific backoff for GitHub URLs (rate limit handling)
     if [[ "$url" == *"github.com"* || "$url" == *"githubusercontent.com"* ]]; then
@@ -231,12 +302,16 @@ DEFAULT_CHECKSUMS_FILE="$SECURITY_SCRIPT_DIR/../../checksums.yaml"
 
 # Resolve to absolute path to prevent working directory manipulation
 if [[ -r "$DEFAULT_CHECKSUMS_FILE" ]]; then
-    # Use realpath if available, otherwise use cd/pwd to get absolute path
-    if command -v realpath &>/dev/null; then
-        DEFAULT_CHECKSUMS_FILE="$(realpath "$DEFAULT_CHECKSUMS_FILE")"
+    # Use trusted realpath if available, otherwise use cd/pwd to get absolute path.
+    _acfs_security_realpath_bin="$(acfs_security_system_binary_path realpath 2>/dev/null || true)"
+    if [[ -n "$_acfs_security_realpath_bin" ]]; then
+        DEFAULT_CHECKSUMS_FILE="$("$_acfs_security_realpath_bin" "$DEFAULT_CHECKSUMS_FILE")"
     else
-        DEFAULT_CHECKSUMS_FILE="$(cd "$(dirname "$DEFAULT_CHECKSUMS_FILE")" && pwd)/$(basename "$DEFAULT_CHECKSUMS_FILE")"
+        _acfs_security_checksums_dir="${DEFAULT_CHECKSUMS_FILE%/*}"
+        _acfs_security_checksums_base="${DEFAULT_CHECKSUMS_FILE##*/}"
+        DEFAULT_CHECKSUMS_FILE="$(cd "$_acfs_security_checksums_dir" && pwd -P)/$_acfs_security_checksums_base"
     fi
+    unset _acfs_security_realpath_bin _acfs_security_checksums_dir _acfs_security_checksums_base
     CHECKSUMS_FILE="${CHECKSUMS_FILE:-$DEFAULT_CHECKSUMS_FILE}"
 else
     # If default not found and CHECKSUMS_FILE not set, use absolute path to repo root
@@ -413,8 +488,13 @@ calculate_sha256() {
 
 _acfs_remove_temp_files() {
     local path
+    local rm_bin=""
+
+    rm_bin="$(acfs_security_system_binary_path rm 2>/dev/null || true)"
+    [[ -n "$rm_bin" ]] || return 0
+
     for path in "$@"; do
-        [[ -n "$path" ]] && rm -f -- "$path" 2>/dev/null || true
+        [[ -n "$path" ]] && "$rm_bin" -f -- "$path" 2>/dev/null || true
     done
 }
 
@@ -428,7 +508,7 @@ fetch_checksum() {
 
     # Create safe temp file
     local tmp_file
-    tmp_file="$(mktemp "${TMPDIR:-/tmp}/acfs-fetch.XXXXXX")" || {
+    tmp_file="$(acfs_security_mktemp "${TMPDIR:-/tmp}/acfs-fetch.XXXXXX")" || {
         log_error "Failed to create temp file"
         return 1
     }
@@ -472,7 +552,7 @@ verify_checksum() {
 
     # Create safe temp file
     local tmp_file
-    tmp_file="$(mktemp "${TMPDIR:-/tmp}/acfs-verify.XXXXXX")" || {
+    tmp_file="$(acfs_security_mktemp "${TMPDIR:-/tmp}/acfs-verify.XXXXXX")" || {
         log_error "Failed to create temp file for $name"
         return 1
     }
@@ -507,7 +587,7 @@ verify_checksum() {
                 fi
 
                 if [[ -z "$verified_file" ]]; then
-                    fresh_tmp_file="$(mktemp "${TMPDIR:-/tmp}/acfs-verify.XXXXXX" 2>/dev/null)" || fresh_tmp_file=""
+                    fresh_tmp_file="$(acfs_security_mktemp "${TMPDIR:-/tmp}/acfs-verify.XXXXXX" 2>/dev/null)" || fresh_tmp_file=""
                     if [[ -n "$fresh_tmp_file" ]] && acfs_download_to_file "$refreshed_url" "$fresh_tmp_file" "$name"; then
                         refreshed_actual_sha256="$(calculate_file_sha256 "$fresh_tmp_file")" || refreshed_actual_sha256=""
                         if [[ -n "$refreshed_actual_sha256" && "$refreshed_actual_sha256" == "$refreshed_expected_sha256" ]]; then
@@ -546,7 +626,7 @@ verify_checksum() {
 
     if [[ "$status" -eq 0 ]]; then
         # Return the verified content (verbatim bytes) on stdout.
-        cat "$verified_file"
+        acfs_security_cat_file "$verified_file"
         status=$?
     fi
 
@@ -559,6 +639,7 @@ fetch_and_run() {
     local url="$1"
     local expected_sha256="${2:-}"
     local name="${3:-installer}"
+    local bash_bin=""
     shift 3 || true
     local args=("$@")
 
@@ -577,9 +658,11 @@ fetch_and_run() {
         return 1
     fi
 
+    bash_bin="$(acfs_security_required_binary_path bash)" || return $?
+
     (
         set -o pipefail
-        verify_checksum "$url" "$expected_sha256" "$name" | bash -s -- "${args[@]}"
+        verify_checksum "$url" "$expected_sha256" "$name" | "$bash_bin" -s -- "${args[@]}"
     )
 }
 
@@ -614,6 +697,7 @@ fetch_and_run_with_recovery() {
     local url="$1"
     local expected_sha256="${2:-}"
     local name="${3:-installer}"
+    local bash_bin=""
     shift 3 || true
     local args=("$@")
 
@@ -632,9 +716,11 @@ fetch_and_run_with_recovery() {
         return 1
     fi
 
+    bash_bin="$(acfs_security_required_binary_path bash)" || return $?
+
     # Create safe temp file
     local tmp_file
-    tmp_file="$(mktemp "${TMPDIR:-/tmp}/acfs-recovery.XXXXXX")" || {
+    tmp_file="$(acfs_security_mktemp "${TMPDIR:-/tmp}/acfs-recovery.XXXXXX")" || {
         log_error "Failed to create temp file for $name"
         return 1
     }
@@ -678,7 +764,7 @@ fetch_and_run_with_recovery() {
     elif [[ "$status" -eq 0 ]]; then
         log_success "Verified: $name"
         # Run the installer
-        bash "$tmp_file" "${args[@]}"
+        "$bash_bin" "$tmp_file" "${args[@]}"
         status=$?
     fi
 
@@ -702,7 +788,7 @@ print_upstream_urls() {
     for name in "${!KNOWN_INSTALLERS[@]}"; do
         local url="${KNOWN_INSTALLERS[$name]}"
         printf "  %-20s %s\n" "$name:" "$url"
-    done | sort
+    done | acfs_security_sort_lines
 
     echo ""
     printf "${DIM}All URLs use HTTPS for secure transport.${NC}\n"
@@ -714,9 +800,7 @@ print_current_checksums() {
     local had_failure=false
     local tmp_output=""
 
-    if command -v mktemp &>/dev/null; then
-        tmp_output=$(mktemp "${TMPDIR:-/tmp}/acfs-checksums-out.XXXXXX" 2>/dev/null) || tmp_output=""
-    fi
+    tmp_output="$(acfs_security_mktemp "${TMPDIR:-/tmp}/acfs-checksums-out.XXXXXX" 2>/dev/null)" || tmp_output=""
 
     if [[ -z "$tmp_output" ]]; then
         echo "ERROR: unable to create temp file for checksums output" >&2
@@ -730,7 +814,7 @@ print_current_checksums() {
 
     {
         # YAML output to stdout
-        echo "# checksums.yaml - Auto-generated $(date -Iseconds)"
+        echo "# checksums.yaml - Auto-generated $(acfs_security_date -Iseconds)"
         echo "# Run: ./scripts/lib/security.sh --update-checksums"
         echo ""
         echo "installers:"
@@ -742,7 +826,7 @@ print_current_checksums() {
         installer_names+=("$name")
     done
     if [[ ${#installer_names[@]} -gt 0 ]]; then
-        mapfile -t installer_names < <(printf '%s\n' "${installer_names[@]}" | sort)
+        mapfile -t installer_names < <(printf '%s\n' "${installer_names[@]}" | acfs_security_sort_lines)
     fi
 
     for name in "${installer_names[@]}"; do
@@ -772,13 +856,13 @@ print_current_checksums() {
     done
 
     if [[ "$had_failure" == "true" ]]; then
-        rm -f "$tmp_output" 2>/dev/null || true
+        _acfs_remove_temp_files "$tmp_output"
         echo "ERROR: one or more installer checksums failed to fetch; refusing to emit incomplete checksums.yaml" >&2
         return 1
     fi
 
-    cat "$tmp_output"
-    rm -f "$tmp_output" 2>/dev/null || true
+    acfs_security_cat_file "$tmp_output"
+    _acfs_remove_temp_files "$tmp_output"
 }
 
 # ============================================================
@@ -901,14 +985,23 @@ declare -g ACFS_CHECKSUMS_REMOTE_REFRESHED=false
 
 acfs_checksums_file_looks_valid() {
     local file="$1"
+    local line=""
+
     [[ -r "$file" ]] || return 1
-    grep -Eq '^[[:space:]]*installers:[[:space:]]*$' "$file"
+
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*installers:[[:space:]]*$ ]] && return 0
+    done < "$file"
+
+    return 1
 }
 
 acfs_fetch_fresh_checksums_to_file() {
     local dest="$1"
+    local cache_buster=""
     local api_url="https://api.github.com/repos/${ACFS_REPO_OWNER}/${ACFS_REPO_NAME}/contents/checksums.yaml?ref=${ACFS_CHECKSUMS_REF}"
-    local raw_url="https://raw.githubusercontent.com/${ACFS_REPO_OWNER}/${ACFS_REPO_NAME}/${ACFS_CHECKSUMS_REF}/checksums.yaml?cb=$(date +%s)"
+    cache_buster="$(acfs_security_date +%s 2>/dev/null || printf '0')"
+    local raw_url="https://raw.githubusercontent.com/${ACFS_REPO_OWNER}/${ACFS_REPO_NAME}/${ACFS_CHECKSUMS_REF}/checksums.yaml?cb=${cache_buster}"
 
     : > "$dest" 2>/dev/null || {
         log_detail "Unable to initialize temporary checksums file: $dest"
@@ -946,24 +1039,24 @@ acfs_refresh_loaded_checksums_from_remote() {
     fi
 
     local refreshed_file=""
-    refreshed_file="$(mktemp "${TMPDIR:-/tmp}/acfs-checksums-refresh.XXXXXX" 2>/dev/null)" || refreshed_file=""
+    refreshed_file="$(acfs_security_mktemp "${TMPDIR:-/tmp}/acfs-checksums-refresh.XXXXXX" 2>/dev/null)" || refreshed_file=""
     if [[ -z "$refreshed_file" ]]; then
         log_detail "Unable to create temp file for refreshed checksums"
         return 1
     fi
 
     if ! acfs_fetch_fresh_checksums_to_file "$refreshed_file"; then
-        rm -f "$refreshed_file"
+        _acfs_remove_temp_files "$refreshed_file"
         return 1
     fi
 
     if ! load_checksums "$refreshed_file"; then
-        rm -f "$refreshed_file"
+        _acfs_remove_temp_files "$refreshed_file"
         return 1
     fi
 
     ACFS_CHECKSUMS_REMOTE_REFRESHED=true
-    rm -f "$refreshed_file"
+    _acfs_remove_temp_files "$refreshed_file"
     return 0
 }
 
@@ -1440,7 +1533,7 @@ verify_all_installers() {
 # Output: JSON object with matches, mismatches, and errors arrays
 verify_all_installers_json() {
     local timestamp
-    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    timestamp="$(acfs_security_date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
     # Arrays to collect results
     local matches=()
@@ -1477,13 +1570,9 @@ verify_all_installers_json() {
         local fetch_error=""
         local tmp_err=""
 
-        # Create temp file for stderr capture
-        # Fallback to empty if mktemp fails (no capture), do NOT use predictable /tmp paths.
-        if command -v mktemp &>/dev/null; then
-            tmp_err=$(mktemp 2>/dev/null) || tmp_err=""
-        else
-            tmp_err=""
-        fi
+        # Create temp file for stderr capture. If this fails, do not use a
+        # predictable fallback path; lose stderr detail instead.
+        tmp_err="$(acfs_security_mktemp 2>/dev/null)" || tmp_err=""
 
         # Capture stdout to variable, stderr to file (if tmp_err exists)
         if [[ -n "$tmp_err" ]]; then
@@ -1492,10 +1581,10 @@ verify_all_installers_json() {
                 :
             else
                 # Failure
-                fetch_error=$(cat "$tmp_err")
+                fetch_error="$(acfs_security_cat_file "$tmp_err")"
                 [[ -z "$fetch_error" ]] && fetch_error="Unknown error fetching checksum"
             fi
-            rm -f "$tmp_err"
+            _acfs_remove_temp_files "$tmp_err"
         else
             # Fallback: capture combined output or lose stderr if we can't separate them safely
             # without a temp file. Here we prioritize safety over error details.

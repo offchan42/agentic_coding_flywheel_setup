@@ -60,6 +60,14 @@ continue_system_binary_path() {
     local candidate=""
 
     [[ -n "$name" ]] || return 1
+    case "$name" in
+        .|..)
+            return 1
+            ;;
+        *[!A-Za-z0-9._+-]*)
+            return 1
+            ;;
+    esac
 
     for candidate in \
         "/usr/bin/$name" \
@@ -364,13 +372,20 @@ read_state_string_from_state() {
     local state_file="$1"
     local key="$2"
     local value=""
+    local jq_bin=""
+    local sed_bin=""
+    local head_bin=""
 
     [[ -f "$state_file" ]] || return 1
 
-    if command -v jq &>/dev/null; then
-        value=$(jq -r --arg key "$key" '.[$key] // empty' "$state_file" 2>/dev/null || true)
+    jq_bin="$(continue_system_binary_path jq 2>/dev/null || true)"
+    if [[ -n "$jq_bin" ]]; then
+        value=$("$jq_bin" -r --arg key "$key" '.[$key] // empty' "$state_file" 2>/dev/null || true)
     else
-        value=$(sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$state_file" 2>/dev/null | head -n 1)
+        sed_bin="$(continue_system_binary_path sed 2>/dev/null || true)"
+        head_bin="$(continue_system_binary_path head 2>/dev/null || true)"
+        [[ -n "$sed_bin" && -n "$head_bin" ]] || return 1
+        value=$("$sed_bin" -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$state_file" 2>/dev/null | "$head_bin" -n 1)
     fi
 
     [[ -n "$value" ]] && [[ "$value" != "null" ]] || return 1
@@ -608,15 +623,17 @@ select_state_file_for_key() {
 get_state_value() {
     local key="$1"
     local state_file=""
+    local jq_bin=""
 
     # In set -e mode, failing command substitutions can abort the script.
     # Treat missing state/jq as "no value" so callers can fall back gracefully.
     state_file=$(select_state_file_for_key "$key") || { echo ""; return 0; }
 
-    command -v jq &>/dev/null || { echo ""; return 0; }
+    jq_bin="$(continue_system_binary_path jq 2>/dev/null || true)"
+    [[ -n "$jq_bin" ]] || { echo ""; return 0; }
 
     # Never crash on jq errors (schema drift / partial state files during boot).
-    jq -r "$key" "$state_file" 2>/dev/null || true
+    "$jq_bin" -r "$key" "$state_file" 2>/dev/null || true
 }
 
 # Get current phase info

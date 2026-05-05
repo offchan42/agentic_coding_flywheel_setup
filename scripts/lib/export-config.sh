@@ -1094,11 +1094,21 @@ get_tool_version() {
 
 # Get mode from state.json
 get_mode() {
+    local jq_bin=""
+    local python_bin=""
+    local sed_bin=""
+    local head_bin=""
+
     if [[ -f "$_EXPORT_STATE_FILE" ]]; then
-        if command -v jq &>/dev/null; then
-            jq -r '.mode // "unknown"' "$_EXPORT_STATE_FILE" 2>/dev/null || echo "unknown"
-        elif command -v python3 &>/dev/null; then
-            python3 - "$_EXPORT_STATE_FILE" <<'PY'
+        jq_bin="$(export_system_binary_path jq 2>/dev/null || true)"
+        if [[ -n "$jq_bin" ]]; then
+            "$jq_bin" -r '.mode // "unknown"' "$_EXPORT_STATE_FILE" 2>/dev/null || echo "unknown"
+        else
+            python_bin="$(export_system_binary_path python3 2>/dev/null || true)"
+        fi
+
+        if [[ -z "$jq_bin" && -n "$python_bin" ]]; then
+            "$python_bin" - "$_EXPORT_STATE_FILE" <<'PY'
 import json
 import sys
 
@@ -1110,9 +1120,15 @@ try:
 except Exception:
     print("unknown")
 PY
-        else
+        elif [[ -z "$jq_bin" ]]; then
             # Use sed instead of grep -oP for portability (works on macOS/BSD)
-            sed -n 's/.*"mode"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_EXPORT_STATE_FILE" 2>/dev/null | head -1 || echo "unknown"
+            sed_bin="$(export_system_binary_path sed 2>/dev/null || true)"
+            head_bin="$(export_system_binary_path head 2>/dev/null || true)"
+            if [[ -n "$sed_bin" && -n "$head_bin" ]]; then
+                "$sed_bin" -n 's/.*"mode"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$_EXPORT_STATE_FILE" 2>/dev/null | "$head_bin" -n 1 || echo "unknown"
+            else
+                echo "unknown"
+            fi
         fi
     else
         echo "unknown"
@@ -1121,11 +1137,19 @@ PY
 
 # Get installed modules from state.json
 get_modules_from_state_file() {
+    local jq_bin=""
+    local python_bin=""
+
     if [[ -f "$_EXPORT_STATE_FILE" ]]; then
-        if command -v jq &>/dev/null; then
-            jq -r '.installed_modules // [] | .[]' "$_EXPORT_STATE_FILE" 2>/dev/null || true
-        elif command -v python3 &>/dev/null; then
-            python3 - "$_EXPORT_STATE_FILE" <<'PY'
+        jq_bin="$(export_system_binary_path jq 2>/dev/null || true)"
+        if [[ -n "$jq_bin" ]]; then
+            "$jq_bin" -r '.installed_modules // [] | .[]' "$_EXPORT_STATE_FILE" 2>/dev/null || true
+        else
+            python_bin="$(export_system_binary_path python3 2>/dev/null || true)"
+        fi
+
+        if [[ -z "$jq_bin" && -n "$python_bin" ]]; then
+            "$python_bin" - "$_EXPORT_STATE_FILE" <<'PY'
 import json
 import sys
 

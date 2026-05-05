@@ -5293,6 +5293,87 @@ EOF
     assert_failure
 }
 
+@test "read-only helper system binary resolvers reject pathlike names" {
+    local label
+    local script
+    local func
+
+    while IFS='|' read -r label script func; do
+        run bash -s -- "$script" "$func" <<'EOF_RESOLVER_REJECTS_PATHS'
+script="$1"
+func="$2"
+eval "$(sed -n "/^${func}()/,/^}$/p" "$script")"
+set -euo pipefail
+! "$func" "."
+! "$func" ".."
+! "$func" "../bin/sh"
+! "$func" "/bin/sh"
+! "$func" "sh name"
+EOF_RESOLVER_REJECTS_PATHS
+        assert_success "$label resolver accepted a pathlike name"
+    done <<EOF
+support|$PROJECT_ROOT/scripts/lib/support.sh|support_system_binary_path
+export-config|$PROJECT_ROOT/scripts/lib/export-config.sh|export_system_binary_path
+cheatsheet|$PROJECT_ROOT/scripts/lib/cheatsheet.sh|cheatsheet_system_binary_path
+continue|$PROJECT_ROOT/scripts/lib/continue.sh|continue_system_binary_path
+EOF
+}
+
+@test "read-only helper state parsers ignore PATH-poisoned jq" {
+    local fake_bin
+    local marker
+    local state_file
+    local label
+    local script
+    local resolver
+    local parser
+
+    fake_bin="$BATS_TEST_TMPDIR/readonly-helper-fake-jq-bin"
+    marker="$BATS_TEST_TMPDIR/readonly-helper-fake-jq-used"
+    state_file="$BATS_TEST_TMPDIR/readonly-helper-state.json"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/jq" <<EOF
+#!/usr/bin/env bash
+printf '/tmp/poisoned-home\n'
+: > "$marker"
+EOF
+    chmod +x "$fake_bin/jq"
+    cat > "$state_file" <<'EOF'
+{"target_home":"/tmp/real-home","target_user":"realuser"}
+EOF
+
+    while IFS='|' read -r label script resolver parser; do
+        run env -i PATH="$fake_bin:/usr/bin:/bin" HOME="$HOME" bash -s -- "$script" "$resolver" "$parser" "$state_file" "$marker" <<'EOF_READONLY_STATE'
+script="$1"
+resolver="$2"
+parser="$3"
+state_file="$4"
+marker="$5"
+eval "$(sed -n "/^${resolver}()/,/^}$/p" "$script")"
+eval "$(sed -n "/^${parser}()/,/^}$/p" "$script")"
+set -euo pipefail
+[[ "$("$parser" "$state_file" target_home)" == "/tmp/real-home" ]]
+[[ ! -e "$marker" ]]
+EOF_READONLY_STATE
+        assert_success "$label parser used PATH-poisoned jq"
+    done <<EOF
+support|$PROJECT_ROOT/scripts/lib/support.sh|support_system_binary_path|support_read_state_string
+export-config|$PROJECT_ROOT/scripts/lib/export-config.sh|export_system_binary_path|read_state_string_from_file
+cheatsheet|$PROJECT_ROOT/scripts/lib/cheatsheet.sh|cheatsheet_system_binary_path|cheatsheet_read_state_string
+continue|$PROJECT_ROOT/scripts/lib/continue.sh|continue_system_binary_path|read_state_string_from_state
+EOF
+}
+
+@test "read-only helper JSON parsers use trusted jq resolver" {
+    local support="$PROJECT_ROOT/scripts/lib/support.sh"
+    local export_config="$PROJECT_ROOT/scripts/lib/export-config.sh"
+    local cheatsheet="$PROJECT_ROOT/scripts/lib/cheatsheet.sh"
+    local continue_script="$PROJECT_ROOT/scripts/lib/continue.sh"
+
+    run grep -F 'command -v jq' "$support" "$export_config" "$cheatsheet" "$continue_script"
+    assert_failure
+}
+
 @test "dashboard generate failure clears cleanup RETURN trap under set -u" {
     local acfs_home
     local fake_info

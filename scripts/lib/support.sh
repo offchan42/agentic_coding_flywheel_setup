@@ -932,8 +932,10 @@ capture_doctor_json() {
 capture_versions() {
     local bundle_dir="$1"
     local versions_file="$bundle_dir/versions.json"
+    local jq_bin=""
 
-    if ! command -v jq &>/dev/null; then
+    jq_bin="$(support_system_binary_path jq 2>/dev/null || true)"
+    if [[ -z "$jq_bin" ]]; then
         log_warn "jq not available, skipping versions capture"
         return 1
     fi
@@ -944,14 +946,16 @@ capture_versions() {
     _ver() {
         local cmd="$1"
         local args="${2:---version}"
-        if command -v "$cmd" &>/dev/null; then
-            timeout 5 "$cmd" $args 2>/dev/null | head -1 || echo "error"
+        local cmd_path=""
+        cmd_path="$(support_system_binary_path "$cmd" 2>/dev/null || command -v "$cmd" 2>/dev/null || true)"
+        if [[ -n "$cmd_path" ]]; then
+            timeout 5 "$cmd_path" $args 2>/dev/null | head -1 || echo "error"
         else
             echo "not installed"
         fi
     }
 
-    versions=$(jq -n \
+    versions=$("$jq_bin" -n \
         --arg bash_ver "${BASH_VERSION:-unknown}" \
         --arg zsh_ver "$(_ver zsh --version)" \
         --arg node_ver "$(_ver node -v)" \
@@ -994,8 +998,10 @@ capture_env_summary() {
     local env_file="$bundle_dir/environment.json"
     local support_home="${SUPPORT_TARGET_HOME:-${_SUPPORT_CURRENT_HOME:-}}"
     local support_user="${SUPPORT_TARGET_USER:-$(support_resolve_current_user 2>/dev/null || echo unknown)}"
+    local jq_bin=""
 
-    if ! command -v jq &>/dev/null; then
+    jq_bin="$(support_system_binary_path jq 2>/dev/null || true)"
+    if [[ -z "$jq_bin" ]]; then
         log_warn "jq not available, skipping environment capture"
         return 1
     fi
@@ -1014,7 +1020,7 @@ capture_env_summary() {
         acfs_version=$(cat "$_SUPPORT_ACFS_HOME/VERSION" 2>/dev/null) || acfs_version="unknown"
     fi
 
-    jq -n \
+    "$jq_bin" -n \
         --arg hostname "$(hostname 2>/dev/null || echo unknown)" \
         --arg kernel "$(uname -r 2>/dev/null || echo unknown)" \
         --arg arch "$(uname -m 2>/dev/null || echo unknown)" \
@@ -1057,8 +1063,10 @@ capture_env_summary() {
 write_manifest() {
     local bundle_dir="$1"
     local manifest_file="$bundle_dir/manifest.json"
+    local jq_bin=""
 
-    if ! command -v jq &>/dev/null; then
+    jq_bin="$(support_system_binary_path jq 2>/dev/null || true)"
+    if [[ -z "$jq_bin" ]]; then
         # Fallback: write a simple text manifest
         record_bundle_file "manifest.txt"
         printf '%s\n' "${BUNDLE_FILES[@]}" > "$bundle_dir/manifest.txt"
@@ -1074,9 +1082,9 @@ write_manifest() {
 
     # Build files array from BUNDLE_FILES
     local files_json
-    files_json=$(printf '%s\n' "${BUNDLE_FILES[@]}" | jq -R . | jq -s .) || files_json="[]"
+    files_json=$(printf '%s\n' "${BUNDLE_FILES[@]}" | "$jq_bin" -R . | "$jq_bin" -s .) || files_json="[]"
 
-    jq -n \
+    "$jq_bin" -n \
         --argjson schema_version 1 \
         --arg created_at "$(date -Iseconds)" \
         --arg created_by "acfs support-bundle" \

@@ -5198,6 +5198,36 @@ EOF_DASHBOARD_SERVE
     assert_failure
 }
 
+@test "dashboard state parser ignores PATH-poisoned jq" {
+    local dashboard="$PROJECT_ROOT/scripts/lib/dashboard.sh"
+    local fake_bin
+    local marker
+    local state_file
+
+    fake_bin="$BATS_TEST_TMPDIR/dashboard-fake-jq-bin"
+    marker="$BATS_TEST_TMPDIR/dashboard-fake-jq-used"
+    state_file="$BATS_TEST_TMPDIR/dashboard-state.json"
+    mkdir -p "$fake_bin"
+    cat > "$fake_bin/jq" <<EOF
+#!/usr/bin/env bash
+printf '/tmp/poisoned-home\n'
+: > "$marker"
+EOF
+    chmod +x "$fake_bin/jq"
+    cat > "$state_file" <<'EOF'
+{"target_home":"/tmp/real-home","target_user":"realuser"}
+EOF
+
+    run env -i PATH="$fake_bin:/usr/bin:/bin" HOME="$HOME" bash -c '
+        source "$1"
+        set -euo pipefail
+        [[ "$(dashboard_read_state_string "$2" target_home)" == "/tmp/real-home" ]]
+        [[ ! -e "$3" ]]
+    ' _ "$dashboard" "$state_file" "$marker"
+
+    assert_success
+}
+
 @test "dashboard generate failure clears cleanup RETURN trap under set -u" {
     local acfs_home
     local fake_info

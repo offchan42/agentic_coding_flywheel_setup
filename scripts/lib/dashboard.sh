@@ -372,13 +372,20 @@ dashboard_read_state_string() {
     local state_file="$1"
     local key="$2"
     local value=""
+    local jq_bin=""
+    local sed_bin=""
+    local head_bin=""
 
     [[ -f "$state_file" ]] || return 1
 
-    if command -v jq &>/dev/null; then
-        value=$(jq -r --arg key "$key" '.[$key] // empty' "$state_file" 2>/dev/null || true)
+    jq_bin="$(dashboard_system_binary_path jq 2>/dev/null || true)"
+    if [[ -n "$jq_bin" ]]; then
+        value=$("$jq_bin" -r --arg key "$key" '.[$key] // empty' "$state_file" 2>/dev/null || true)
     else
-        value=$(sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$state_file" 2>/dev/null | head -n 1)
+        sed_bin="$(dashboard_system_binary_path sed 2>/dev/null || true)"
+        head_bin="$(dashboard_system_binary_path head 2>/dev/null || true)"
+        [[ -n "$sed_bin" && -n "$head_bin" ]] || return 1
+        value=$("$sed_bin" -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$state_file" 2>/dev/null | "$head_bin" -n 1)
     fi
 
     [[ -n "$value" ]] && [[ "$value" != "null" ]] || return 1

@@ -51,6 +51,14 @@ export_system_binary_path() {
     local candidate=""
 
     [[ -n "$name" ]] || return 1
+    case "$name" in
+        .|..)
+            return 1
+            ;;
+        *[!A-Za-z0-9._+-]*)
+            return 1
+            ;;
+    esac
 
     for candidate in \
         "/usr/bin/$name" \
@@ -340,13 +348,22 @@ read_state_string_from_file() {
     local state_file="$1"
     local key="$2"
     local value=""
+    local jq_bin=""
+    local python_bin=""
+    local sed_bin=""
+    local head_bin=""
 
     [[ -f "$state_file" ]] || return 1
 
-    if command -v jq &>/dev/null; then
-        value=$(jq -r --arg key "$key" '.[$key] // empty' "$state_file" 2>/dev/null || true)
-    elif command -v python3 &>/dev/null; then
-        value=$(python3 - "$state_file" "$key" <<'PY'
+    jq_bin="$(export_system_binary_path jq 2>/dev/null || true)"
+    if [[ -n "$jq_bin" ]]; then
+        value=$("$jq_bin" -r --arg key "$key" '.[$key] // empty' "$state_file" 2>/dev/null || true)
+    else
+        python_bin="$(export_system_binary_path python3 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$value" && -n "$python_bin" ]]; then
+        value=$("$python_bin" - "$state_file" "$key" <<'PY'
 import json
 import sys
 
@@ -360,8 +377,13 @@ except Exception:
     pass
 PY
         )
-    else
-        value=$(sed -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$state_file" 2>/dev/null | head -1 || true)
+    fi
+
+    if [[ -z "$value" ]]; then
+        sed_bin="$(export_system_binary_path sed 2>/dev/null || true)"
+        head_bin="$(export_system_binary_path head 2>/dev/null || true)"
+        [[ -n "$sed_bin" && -n "$head_bin" ]] || return 1
+        value=$("$sed_bin" -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$state_file" 2>/dev/null | "$head_bin" -n 1 || true)
     fi
 
     [[ -n "$value" ]] || return 1

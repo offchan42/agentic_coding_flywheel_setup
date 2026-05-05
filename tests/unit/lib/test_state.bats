@@ -39,6 +39,19 @@ teardown() {
     assert_output "unknown"
 }
 
+@test "state: system binary resolver rejects pathlike names" {
+    run state_system_binary_path "."
+    assert_failure
+    run state_system_binary_path ".."
+    assert_failure
+    run state_system_binary_path "../bin/sh"
+    assert_failure
+    run state_system_binary_path "/bin/sh"
+    assert_failure
+    run state_system_binary_path "sh name"
+    assert_failure
+}
+
 @test "state: save and load round trip" {
     state_init
     

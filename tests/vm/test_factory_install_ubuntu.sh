@@ -314,8 +314,15 @@ run_step() {
 run_target_step() {
     local phase="$1"
     local script="$2"
+    local target_home=""
+    local target_path=""
+
+    target_home="$(getent passwd ubuntu | cut -d: -f6)"
+    [[ -n "$target_home" ]] || fail "$phase" "unable to resolve ubuntu home"
+    target_path="$target_home/.local/bin:$target_home/.acfs/bin:$target_home/.cargo/bin:$target_home/.bun/bin:$target_home/.atuin/bin:$target_home/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
+
     log_event "$phase" "start" "$script"
-    if sudo -n -iu ubuntu env ACFS_DOCTOR_CI=true bash -lc "$script"; then
+    if sudo -n -u ubuntu env ACFS_DOCTOR_CI=true HOME="$target_home" PATH="$target_path" bash -lc "$script"; then
         pass "$phase" "$script"
     else
         local rc=$?
@@ -503,11 +510,12 @@ collect_artifacts() {
 
 wait_for_post_install_ready() {
     local deadline=$((SECONDS + ACFS_FACTORY_POST_REBOOT_TIMEOUT_SECONDS))
+    local target_path="/home/ubuntu/.local/bin:/home/ubuntu/.acfs/bin:/home/ubuntu/.cargo/bin:/home/ubuntu/.bun/bin:/home/ubuntu/.atuin/bin:/home/ubuntu/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
 
     while [[ "$SECONDS" -lt "$deadline" ]]; do
         if id ubuntu >/dev/null 2>&1 \
             && [[ -f /home/ubuntu/.acfs/VERSION ]] \
-            && sudo -n -iu ubuntu env ACFS_DOCTOR_CI=true bash -lc 'command -v acfs >/dev/null' >/dev/null 2>&1; then
+            && sudo -n -u ubuntu env ACFS_DOCTOR_CI=true HOME=/home/ubuntu PATH="$target_path" bash -lc 'command -v acfs >/dev/null' >/dev/null 2>&1; then
             pass "post.wait_ready" "ACFS files and ubuntu user are present"
             return 0
         fi

@@ -128,6 +128,7 @@ research_screenshots/
 /apps/web/app/.gitkeep
 /apps/web/components/.gitkeep
 /apps/web/lib/.gitkeep
+/packages/installer/.gitkeep
 /packages/manifest/.gitkeep
 /packages/onboard/.gitkeep
 /scripts/providers/.gitkeep

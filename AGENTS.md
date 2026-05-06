@@ -243,7 +243,6 @@ agentic_coding_flywheel_setup/
 │
 ├── packages/
 │   ├── manifest/                 # Manifest YAML parser + generators
-│   ├── installer/                # Installer helper scripts
 │   └── onboard/                  # Onboard TUI source
 │
 ├── acfs/                         # Files copied to ~/.acfs on VPS

@@ -2523,7 +2523,6 @@ agentic_coding_flywheel_setup/
 │   │       ├── types.ts          # TypeScript types
 │   │       ├── utils.ts          # Helper functions
 │   │       └── generate.ts       # Script generator
-│   ├── installer/                # Installer helper scripts
 │   └── onboard/                  # Onboard TUI source
 │
 ├── acfs/                         # Files deployed to ~/.acfs/

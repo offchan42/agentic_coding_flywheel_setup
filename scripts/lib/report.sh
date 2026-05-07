@@ -150,6 +150,36 @@ report_failure() {
     local step="${CURRENT_STEP:-unknown step}"
     local error="${LAST_ERROR:-Unknown error}"
     local error_output="${LAST_ERROR_OUTPUT:-}"
+    local state_failed_phase=""
+    local state_failed_step=""
+    local state_failed_error=""
+
+    if [[ -n "${ACFS_STATE_FILE:-}" && -r "${ACFS_STATE_FILE:-}" ]] && command -v jq &>/dev/null; then
+        state_failed_phase="$(jq -r '.failed_phase // empty' "$ACFS_STATE_FILE" 2>/dev/null || true)"
+        state_failed_step="$(jq -r '.failed_step // empty' "$ACFS_STATE_FILE" 2>/dev/null || true)"
+        state_failed_error="$(jq -r '.failed_error // empty' "$ACFS_STATE_FILE" 2>/dev/null || true)"
+    fi
+
+    if [[ ( -z "$phase" || "$phase" == "unknown" ) && -n "$state_failed_phase" ]]; then
+        phase="$state_failed_phase"
+    fi
+    if [[ ( -z "$phase_name" || "$phase_name" == "Unknown Phase" ) && -n "$phase" && "$phase" != "unknown" ]]; then
+        local mapped_phase_name=""
+        if declare -p ACFS_PHASE_NAMES >/dev/null 2>&1; then
+            mapped_phase_name="${ACFS_PHASE_NAMES[$phase]:-}"
+        fi
+        if [[ -n "$mapped_phase_name" ]]; then
+            phase_name="$mapped_phase_name"
+        else
+            phase_name="$phase"
+        fi
+    fi
+    if [[ ( -z "$step" || "$step" == "unknown step" || "$step" == "Execution failed" ) && -n "$state_failed_step" ]]; then
+        step="$state_failed_step"
+    fi
+    if [[ ( -z "$error" || "$error" == "Unknown error" ) && -n "$state_failed_error" ]]; then
+        error="$state_failed_error"
+    fi
 
     # Truncate error output if too long
     local max_error_lines=5
@@ -161,7 +191,15 @@ report_failure() {
     # Get suggested fix from errors.sh if available
     local suggested_fix="Unknown error - check logs for details"
     if type -t get_suggested_fix &>/dev/null; then
-        suggested_fix=$(get_suggested_fix "$error" 2>/dev/null || get_suggested_fix "$error_output" 2>/dev/null || echo "$suggested_fix")
+        local matched_fix=""
+        if type -t get_error_pattern &>/dev/null && get_error_pattern "$error" >/dev/null 2>&1; then
+            matched_fix="$(get_suggested_fix "$error" 2>/dev/null || true)"
+        elif [[ -n "$error_output" ]] && type -t get_error_pattern &>/dev/null && get_error_pattern "$error_output" >/dev/null 2>&1; then
+            matched_fix="$(get_suggested_fix "$error_output" 2>/dev/null || true)"
+        else
+            matched_fix="$(get_suggested_fix "$error" 2>/dev/null || true)"
+        fi
+        [[ -n "$matched_fix" ]] && suggested_fix="$matched_fix"
     fi
 
     # Build resume command (prefer HTTPS-only curl when supported)

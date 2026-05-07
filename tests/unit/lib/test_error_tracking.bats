@@ -98,3 +98,58 @@ EOF
     assert_success
     assert_output "trusted bash used"
 }
+
+@test "report_failure renders generic unknown fix once" {
+    local report_log
+    report_log="$BATS_TEST_TMPDIR/report.log"
+
+    run env -i PATH="/usr/bin:/bin" ACFS_LOG_FILE="$report_log" /usr/bin/bash -c '
+        set -euo pipefail
+        source "$1"
+        source "$2"
+        CURRENT_PHASE="stack"
+        CURRENT_PHASE_NAME="Dicklesworthstone Stack"
+        CURRENT_STEP="unknown step"
+        LAST_ERROR="Unknown error"
+        report_failure 8 9
+    ' _ "$PROJECT_ROOT/scripts/lib/errors.sh" "$PROJECT_ROOT/scripts/lib/report.sh"
+
+    assert_success
+    assert_output --partial "Phase 8/9: Dicklesworthstone Stack"
+    assert_output --partial "Failed at:"
+
+    local count
+    count="$(grep -c "Check internet connectivity" <<< "$output" || true)"
+    assert_equal "$count" "1"
+}
+
+@test "report_failure fills missing context from state file" {
+    local state_dir
+    local state_file
+    local report_log
+    state_dir="$(create_temp_dir)"
+    state_file="$state_dir/state.json"
+    report_log="$state_dir/report.log"
+    cat > "$state_file" <<'EOF_STATE'
+{
+  "failed_phase": "stack",
+  "failed_step": "MCP Agent Mail",
+  "failed_error": "checksum mismatch: expected old actual new"
+}
+EOF_STATE
+
+    run env -i PATH="/usr/bin:/bin" ACFS_STATE_FILE="$state_file" ACFS_LOG_FILE="$report_log" /usr/bin/bash -c '
+        set -euo pipefail
+        source "$1"
+        source "$2"
+        source "$3"
+        report_failure 8 9
+    ' _ "$PROJECT_ROOT/scripts/lib/state.sh" "$PROJECT_ROOT/scripts/lib/errors.sh" "$PROJECT_ROOT/scripts/lib/report.sh"
+
+    assert_success
+    assert_output --partial "Phase 8/9: Dicklesworthstone Stack"
+    assert_output --partial "Failed at:"
+    assert_output --partial "MCP Agent Mail"
+    assert_output --partial "checksum mismatch: expected old actual new"
+    refute_output --partial "unknown step"
+}

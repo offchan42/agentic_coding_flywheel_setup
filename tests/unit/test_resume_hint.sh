@@ -106,6 +106,7 @@ setup_test_env() {
     SKIP_UBUNTU_UPGRADE=false
     YES_MODE=false
     STRICT_MODE=false
+    ACFS_STRICT_MODE=false
     DRY_RUN=false
     PRINT_MODE=false
     AUTO_FIX_MODE="prompt"
@@ -466,6 +467,22 @@ test_strict_mode() {
     return 0
 }
 
+# Test: strict mode set by parse_args runtime flag
+test_acfs_strict_mode() {
+    setup_test_env
+    ACFS_STRICT_MODE=true
+
+    local result
+    result=$(generate_resume_hint "" "")
+
+    if [[ "$result" != *"--strict"* ]]; then
+        log "  Expected --strict from ACFS_STRICT_MODE in output, got: $result"
+        return 1
+    fi
+
+    return 0
+}
+
 # Test: Complex combination
 test_complex_combination() {
     setup_test_env
@@ -704,6 +721,7 @@ main() {
     run_test test_all_skip_flags
     run_test test_yes_mode
     run_test test_strict_mode
+    run_test test_acfs_strict_mode
     run_test test_complex_combination
     run_test test_main_branch_shorthand
     run_test test_empty_ref_shorthand

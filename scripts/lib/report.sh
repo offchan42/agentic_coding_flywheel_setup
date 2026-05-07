@@ -169,7 +169,7 @@ report_build_resume_command() {
     if [[ "${YES_MODE:-false}" == "true" ]]; then
         resume_args+=(--yes)
     fi
-    if [[ "${STRICT_MODE:-false}" == "true" ]]; then
+    if [[ "${STRICT_MODE:-false}" == "true" || "${ACFS_STRICT_MODE:-false}" == "true" ]]; then
         resume_args+=(--strict)
     fi
     [[ "${SKIP_POSTGRES:-false}" == "true" ]] && resume_args+=(--skip-postgres)

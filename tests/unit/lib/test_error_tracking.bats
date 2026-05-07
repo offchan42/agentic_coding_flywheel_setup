@@ -193,7 +193,7 @@ EOF
         ACFS_CHECKSUMS_REF="release-checksums" \
         MODE="safe" \
         YES_MODE=true \
-        STRICT_MODE=true \
+        ACFS_STRICT_MODE=true \
         SKIP_CLOUD=true \
         /usr/bin/bash -c '
             set -euo pipefail

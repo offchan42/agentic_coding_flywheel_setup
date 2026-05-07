@@ -216,6 +216,7 @@ MODE="vibe"
 SKIP_POSTGRES=false
 SKIP_VAULT=false
 SKIP_CLOUD=false
+STRICT_MODE=false
 
 # Manifest-driven selection options (mjt.5.3)
 LIST_MODULES=false
@@ -1089,7 +1090,7 @@ generate_resume_hint() {
     [[ "${YES_MODE:-false}" == "true" ]] && resume_args+=(--yes)
 
     # Add --strict if it was set
-    [[ "${STRICT_MODE:-false}" == "true" ]] && resume_args+=(--strict)
+    [[ "${STRICT_MODE:-false}" == "true" || "${ACFS_STRICT_MODE:-false}" == "true" ]] && resume_args+=(--strict)
 
     for arg_q in "${resume_args[@]}"; do
         printf -v arg_q '%q' "$arg_q"
@@ -1357,6 +1358,7 @@ parse_args() {
             --strict)
                 # Treat all tools as critical - any checksum mismatch aborts
                 # Related: bead 8mv, tools.sh ACFS_STRICT_MODE handling
+                STRICT_MODE=true
                 export ACFS_STRICT_MODE=true
                 shift
                 ;;

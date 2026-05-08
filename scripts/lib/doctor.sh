@@ -4238,6 +4238,18 @@ main() {
             echo "Error: status.sh not found" >&2
             return 1
             ;;
+        capacity|cap)
+            shift
+            local capacity_script=""
+            capacity_script="$(_acfs_doctor_find_lib_script "capacity.sh" 2>/dev/null || true)"
+
+            if [[ -n "$capacity_script" ]]; then
+                _acfs_doctor_exec_bash_script "$capacity_script" "$@"
+            fi
+
+            echo "Error: capacity.sh not found" >&2
+            return 1
+            ;;
         dashboard)
             shift
             local dashboard_script=""

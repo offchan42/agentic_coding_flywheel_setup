@@ -807,6 +807,24 @@ test.describe("Step 7: Accounts Page", () => {
 });
 
 // =============================================================================
+// STEP 8: PRE-FLIGHT CHECK - Individual Tests
+// =============================================================================
+test.describe("Step 8: Pre-Flight Check Page", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupWizardState(page, { os: "mac", ip: "192.168.1.100" });
+  });
+
+  test("should fetch preflight from the same pinned ref as the installer", async ({ page }) => {
+    await page.goto("/wizard/preflight-check?ref=v2.0.0");
+    await page.waitForLoadState("domcontentloaded");
+
+    const commandElement = page.locator("code").filter({ hasText: "scripts/preflight.sh" }).first();
+    await expect(commandElement).toContainText("/v2.0.0/scripts/preflight.sh");
+    await expect(commandElement).not.toContainText("/main/scripts/preflight.sh");
+  });
+});
+
+// =============================================================================
 // STEP 9: RUN INSTALLER - Individual Tests
 // =============================================================================
 test.describe("Step 9: Run Installer Page", () => {

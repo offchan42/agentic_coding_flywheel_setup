@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { ConnectionCheck } from "@/components/connection-check";
 import { formatSshTarget } from "@/lib/commandBuilder";
 import { markStepComplete } from "@/lib/wizardSteps";
 import { useWizardAnalytics } from "@/lib/hooks/useWizardAnalytics";
-import { useVPSIP } from "@/lib/userPreferences";
+import { normalizeGitRef, useACFSRef, useVPSIP } from "@/lib/userPreferences";
 import { withCurrentSearch } from "@/lib/utils";
 import {
   SimplerGuide,
@@ -22,8 +22,9 @@ import {
 } from "@/components/simpler-guide";
 import { Jargon } from "@/components/jargon";
 
-const PREFLIGHT_COMMAND =
-  "curl -fsSL \"https://raw.githubusercontent.com/Dicklesworthstone/agentic_coding_flywheel_setup/main/scripts/preflight.sh?$(date +%s)\" | bash";
+const PREFLIGHT_SCRIPT_BASE_URL =
+  "https://raw.githubusercontent.com/Dicklesworthstone/agentic_coding_flywheel_setup";
+const DEFAULT_PREFLIGHT_REF = "main";
 
 const TROUBLESHOOTING = [
   {
@@ -71,6 +72,7 @@ const TROUBLESHOOTING = [
 export default function PreflightCheckPage() {
   const router = useRouter();
   const [vpsIP] = useVPSIP();
+  const [acfsRef] = useACFSRef();
   const [ackPassed, setAckPassed] = useState(false);
   const [ackFailed, setAckFailed] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
@@ -84,6 +86,12 @@ export default function PreflightCheckPage() {
 
   const displayIP = vpsIP || "YOUR_VPS_IP";
   const rootTarget = formatSshTarget("root", displayIP);
+  const preflightRef = normalizeGitRef(acfsRef) ?? DEFAULT_PREFLIGHT_REF;
+  const preflightCommand = useMemo(
+    () =>
+      `curl -fsSL "${PREFLIGHT_SCRIPT_BASE_URL}/${preflightRef}/scripts/preflight.sh?$(date +%s)" | bash`,
+    [preflightRef],
+  );
 
   const canContinue = ackPassed || ackFailed;
 
@@ -161,7 +169,7 @@ export default function PreflightCheckPage() {
       <div className="space-y-4">
         <h2 className="text-xl font-semibold">Run this command</h2>
         <CommandCard
-          command={PREFLIGHT_COMMAND}
+          command={preflightCommand}
           description="ACFS pre-flight validation"
           runLocation="vps"
           showCheckbox
@@ -173,7 +181,7 @@ export default function PreflightCheckPage() {
       <OutputPreview title="Expected output (example)">
         <div className="space-y-1 font-mono text-xs">
           <p className="text-muted-foreground">ACFS Pre-Flight Check</p>
-          <p className="text-muted-foreground">=====================</p>
+          <p className="text-muted-foreground">---------------------</p>
           <p className="text-[oklch(0.72_0.19_145)]">[✓] Operating System: Ubuntu 25.10 (or 24.04 before upgrade)</p>
           <p className="text-[oklch(0.72_0.19_145)]">[✓] Architecture: x86_64</p>
           <p className="text-[oklch(0.72_0.19_145)]">[✓] Disk Space: 45GB free</p>

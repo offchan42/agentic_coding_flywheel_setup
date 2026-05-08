@@ -30,8 +30,8 @@ export function SwarmCoordinationLesson() {
   return (
     <div className="space-y-8">
       <GoalBanner>
-        Orchestrate multi-agent swarms using NTM, WA, Agent Mail, BV, and CAAM
-        working together as an integrated pipeline.
+        Run a complete multi-agent task loop with Beads robot triage, Agent
+        Mail reservations, RCH-backed builds, UBS scanning, and a clean handoff.
       </GoalBanner>
 
       {/* Section 1: The Swarm Pipeline */}
@@ -46,37 +46,37 @@ export function SwarmCoordinationLesson() {
           <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
             <ArrowRight className="h-4 w-4 text-blue-400 shrink-0" />
             <span className="text-white/90 text-sm">
-              <strong className="text-blue-400">1. Plan</strong> — BV triages issues and splits work by label
+              <strong className="text-blue-400">1. Pick</strong> — use <code>bv --robot-next</code> and <code>br ready --json</code>
             </span>
           </div>
           <div className="flex items-center gap-3 p-3 rounded-lg bg-violet-500/10 border border-violet-500/30">
             <ArrowRight className="h-4 w-4 text-violet-400 shrink-0" />
             <span className="text-white/90 text-sm">
-              <strong className="text-violet-400">2. Provision</strong> — CAAM rotates accounts across providers
+              <strong className="text-violet-400">2. Claim</strong> — register with Agent Mail and mark the Bead in progress
             </span>
           </div>
           <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
             <ArrowRight className="h-4 w-4 text-emerald-400 shrink-0" />
             <span className="text-white/90 text-sm">
-              <strong className="text-emerald-400">3. Launch</strong> — NTM spawns agents with staggered prompts
+              <strong className="text-emerald-400">3. Reserve</strong> — lock the exact files before edits start
             </span>
           </div>
           <div className="flex items-center gap-3 p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
             <ArrowRight className="h-4 w-4 text-cyan-400 shrink-0" />
             <span className="text-white/90 text-sm">
-              <strong className="text-cyan-400">4. Observe</strong> — WA monitors all panes for state transitions
+              <strong className="text-cyan-400">4. Execute</strong> — keep the slice narrow and coordinate dependencies in-thread
             </span>
           </div>
           <div className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
             <ArrowRight className="h-4 w-4 text-amber-400 shrink-0" />
             <span className="text-white/90 text-sm">
-              <strong className="text-amber-400">5. Coordinate</strong> — Agent Mail handles inter-agent communication
+              <strong className="text-amber-400">5. Verify</strong> — use <code>rch exec --</code> for heavy Rust gates and scan with UBS
             </span>
           </div>
           <div className="flex items-center gap-3 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30">
             <ArrowRight className="h-4 w-4 text-rose-400 shrink-0" />
             <span className="text-white/90 text-sm">
-              <strong className="text-rose-400">6. Adapt</strong> — Auto-respawner replaces failed or rate-limited agents
+              <strong className="text-rose-400">6. Land</strong> — close/sync Beads, release reservations, and post the handoff
             </span>
           </div>
         </div>
@@ -88,107 +88,114 @@ export function SwarmCoordinationLesson() {
 
       <Divider />
 
-      {/* Section 2: NTM Spawn Architecture */}
-      <Section title="NTM Spawn Architecture" icon={<Terminal className="h-5 w-5" />} delay={0.15}>
+      {/* Section 2: Coordination Preflight */}
+      <Section title="Coordination Preflight" icon={<Terminal className="h-5 w-5" />} delay={0.15}>
         <Paragraph>
-          NTM&apos;s <Highlight>6-phase spawn sequence</Highlight> ensures agents
-          start cleanly without stepping on each other. Understanding this flow
-          is critical for reliable swarms.
+          Start with machine-readable task state, then register your agent
+          identity before any edits. This makes the session auditable and keeps
+          every later command tied to one Bead.
         </Paragraph>
 
         <CodeBlock
-          code={`# Phase 1: Session creation
-ntm spawn --session swarm-01 --agents 4
+          code={`# Pick ready work without launching an interactive TUI
+bv --robot-next
+bv --robot-triage
+br ready --json
 
-# Phase 2: Pane naming (each agent gets a labeled pane)
-# → swarm-01:claude-1, swarm-01:codex-2, etc.
+# Inspect and claim exactly one Bead
+br show bd-1234 --json
+br update bd-1234 --status in_progress
 
-# Phase 3: Agent launch (staggered to avoid rate limits)
-# → 5-second delay between each agent start
-
-# Phase 4: Staggered prompt delivery
-# → Each agent receives its prompt after launch settles
-
-# Phase 5: Session monitor starts
-# → Watches for rate limits, crashes, completions
-
-# Phase 6: Graceful shutdown on completion
-# → Agents are stopped when all tasks complete`}
-          filename="Spawn Sequence"
+# Register Agent Mail identity through MCP tools
+ensure_project(human_key="/data/projects/my-app")
+register_agent(
+  project_key="/data/projects/my-app",
+  program="codex-cli",
+  model="gpt-5",
+  task_description="bd-1234 checkout validation"
+)`}
+          filename="Preflight"
         />
 
         <TipBox variant="tip">
-          The 5-second stagger between agent launches prevents all agents from
-          hitting the same provider simultaneously, which would trigger immediate
-          rate limits.
+          Use the same Bead ID in the Agent Mail thread, reservation reason,
+          commit message, and final closeout. That is what makes the session
+          traceable.
         </TipBox>
       </Section>
 
       <Divider />
 
-      {/* Section 3: Work Allocation with BV */}
-      <Section title="Work Allocation" icon={<BarChart3 className="h-5 w-5" />} delay={0.2}>
+      {/* Section 3: Claim and Reserve */}
+      <Section title="Claim and Reserve" icon={<BarChart3 className="h-5 w-5" />} delay={0.2}>
         <Paragraph>
-          Before spawning agents, use BV to split work intelligently across them.
-          The <Highlight>triage-by-label</Highlight> command groups issues by
-          domain, so each agent gets a coherent workload.
+          A swarm stays calm when each agent owns a tight surface. Reserve only
+          the files you expect to touch, then announce the claim in the Bead
+          thread.
         </Paragraph>
 
         <CodeBlock
-          code={`# Step 1: Get work allocation plan
+          code={`# Optional: split a larger queue by coherent labels
 bv --robot-triage-by-label
 
-# Output groups issues by label:
-# "backend": [bd-abc, bd-def, bd-ghi]  → Agent 1
-# "frontend": [bd-jkl, bd-mno]         → Agent 2
-# "infra": [bd-pqr, bd-stu]            → Agent 3
+# Reserve via Agent Mail MCP before editing
+file_reservation_paths(
+  project_key="/data/projects/my-app",
+  agent_name="BlueLake",
+  paths=["src/checkout/session.ts", "tests/checkout/session.test.ts"],
+  ttl_seconds=3600,
+  exclusive=true,
+  reason="bd-1234: checkout validation"
+)
 
-# Step 2: Assign via Agent Mail
-am mail send --project /your/project --from coordinator --to agent-1 \\
-  --subject "backend tasks" --body "Work on: bd-abc, bd-def, bd-ghi"
-
-# Step 3: Reserve files to prevent conflicts
-am file_reservations reserve --exclusive /your/project agent-1 src/api/routes.ts
-am file_reservations reserve --exclusive /your/project agent-2 src/components/App.tsx`}
-          filename="Work Splitting"
+# Announce the start in-thread
+send_message(
+  project_key="/data/projects/my-app",
+  sender_name="BlueLake",
+  to=["GreenCastle"],
+  thread_id="bd-1234",
+  subject="[bd-1234] Start: checkout validation",
+  body_md="Reserved checkout session files. Plan: validation plus focused tests."
+)`}
+          filename="Claim and Reservation"
         />
 
         <TipBox variant="warning">
-          Always use file reservations when agents might touch the same files.
-          Without reservations, merge conflicts are inevitable.
+          If the reservation conflicts, pick a different ready Bead or narrow
+          the paths. Do not edit files another active agent has reserved.
         </TipBox>
       </Section>
 
       <Divider />
 
-      {/* Section 4: WA Observation */}
-      <Section title="Real-Time Observation" icon={<Eye className="h-5 w-5" />} delay={0.25}>
+      {/* Section 4: Execute and Verify */}
+      <Section title="Execute and Verify" icon={<Eye className="h-5 w-5" />} delay={0.25}>
         <Paragraph>
-          WA monitors all agent panes and detects state transitions: rate limits,
-          completions, errors, and idle periods. This enables automated responses.
+          Keep implementation narrow, then run the smallest meaningful gate
+          first. Rust-heavy gates should go through RCH so parallel agents do
+          not overwhelm the local host.
         </Paragraph>
 
         <CodeBlock
-          code={`# Start the observation daemon
-wa daemon start
+          code={`# Rust checks use remote compilation
+rch exec -- cargo test
+rch exec -- cargo clippy
 
-# Check what WA sees across all panes
-wa robot state | jq '.data.panes[] | {id, title, agent_type}'
+# Web checks use Bun
+cd apps/web
+bun run type-check
+bun run lint
+bun run build
 
-# Wait for any agent to hit a rate limit
-wa robot wait-for --any --pattern "rate limit" --timeout-secs 300
-
-# Search across all captured output
-wa search "error" --since "1h ago" --snippets
-
-# View events (rate limits, completions, etc.)
-wa robot events --unhandled-only`}
-          filename="Observation Commands"
+# Scan only the changed files before commit
+ubs src/checkout/session.ts tests/checkout/session.test.ts`}
+          filename="Verification Commands"
         />
 
         <TipBox variant="info">
-          WA uses delta extraction (not full buffer snapshots) so observation
-          overhead is minimal even with 6+ agent panes.
+          For documentation-only changes, use focused static checks and UBS on
+          the changed files. For shared code paths, widen to the repo&apos;s full
+          gate before commit.
         </TipBox>
       </Section>
 
@@ -197,77 +204,92 @@ wa robot events --unhandled-only`}
       {/* Section 5: Agent Communication */}
       <Section title="Agent Communication" icon={<Mail className="h-5 w-5" />} delay={0.3}>
         <Paragraph>
-          Agent Mail provides structured messaging between agents. When one agent
-          completes a dependency, it notifies dependents to unblock them.
+          Agent Mail provides structured messaging between agents. When one
+          agent completes a dependency, it posts in the same Bead thread so
+          dependents know what changed.
         </Paragraph>
 
         <CommandList
           commands={[
-            { command: 'am mail send --project /your/project --from agent-1 --to agent-2 --subject "API ready" --body "Endpoints are ready"', description: 'Notify a dependent agent' },
-            { command: 'am mail inbox --project /your/project --agent agent-1', description: 'Check for incoming messages' },
-            { command: 'am file_reservations reserve --exclusive /your/project agent-1 path', description: 'Reserve a file exclusively' },
-            { command: 'am file_reservations release /your/project agent-1 --paths path', description: 'Release a file reservation' },
-            { command: 'am mail send --project /your/project --from lead --to agent-1,agent-2 --subject "rebase needed" --body "Please rebase on main"', description: 'Message multiple agents at once' },
+            { command: 'send_message(..., thread_id="bd-1234")', description: 'Notify a dependent agent in the Bead thread' },
+            { command: 'fetch_inbox(project_key=..., agent_name=..., include_bodies=true)', description: 'Check for incoming messages' },
+            { command: 'acknowledge_message(project_key=..., agent_name=..., message_id=...)', description: 'Acknowledge important coordination mail' },
+            { command: 'file_reservation_paths(..., exclusive=true, reason="bd-1234")', description: 'Reserve files before editing' },
+            { command: 'release_file_reservations(project_key=..., agent_name=...)', description: 'Release reservations after commit' },
           ]}
         />
 
         <CodeBlock
-          code={`# Typical coordination pattern:
-# Agent 1 finishes backend API
-am mail send --project /your/project --from agent-1 --to agent-2 \\
-  --subject "API endpoints ready" \\
-  --body "GET /users and POST /users are deployed to dev"
+          code={`send_message(
+  project_key="/data/projects/my-app",
+  sender_name="BlueLake",
+  to=["GreenCastle"],
+  thread_id="bd-1234",
+  subject="[bd-1234] API endpoints ready",
+  body_md="GET /users and POST /users are implemented and covered by tests."
+)
 
-# Agent 2 picks up the message and starts frontend work
-am mail inbox --project /your/project --agent agent-2
-# → "API endpoints ready" from agent-1`}
+fetch_inbox(
+  project_key="/data/projects/my-app",
+  agent_name="GreenCastle",
+  include_bodies=true
+)`}
           filename="Message Flow"
         />
       </Section>
 
       <Divider />
 
-      {/* Section 6: Auto-Recovery */}
-      <Section title="Auto-Recovery" icon={<RefreshCw className="h-5 w-5" />} delay={0.35}>
+      {/* Section 6: Landing the Plane */}
+      <Section title="Landing the Plane" icon={<RefreshCw className="h-5 w-5" />} delay={0.35}>
         <Paragraph>
-          When agents hit rate limits or crash, the swarm should recover
-          automatically. NTM&apos;s auto-respawner + CAAM rotation handles this.
+          A swarm task is not done when the patch works locally. Close the Bead,
+          sync the issue export, commit the exact changed files, release
+          reservations, and leave a final handoff in the thread.
         </Paragraph>
 
         <CodeBlock
-          code={`# CAAM auto-rotates on rate limit
-# When WA detects "rate limit" on a pane:
-caam cooldown current-account --ttl 5m
-caam rotate  # Switches to next available account
+          code={`br close bd-1234 --reason "Implemented checkout validation"
+br sync --flush-only
 
-# NTM auto-respawner replaces dead agents
-# If an agent exits unexpectedly, NTM detects it
-# and spawns a replacement with the same prompt
+git status
+git add src/checkout/session.ts tests/checkout/session.test.ts .beads/
+git commit -m "fix(checkout): validate checkout sessions"
+git push origin main
+git push origin main:master
 
-# Combined workflow:
-# 1. WA detects rate limit → event fired
-# 2. CAAM rotates to fresh account
-# 3. NTM respawns the agent with new credentials
-# 4. Agent Mail notifies other agents of the restart`}
-          filename="Recovery Flow"
+release_file_reservations(
+  project_key="/data/projects/my-app",
+  agent_name="BlueLake"
+)
+
+send_message(
+  project_key="/data/projects/my-app",
+  sender_name="BlueLake",
+  to=["GreenCastle"],
+  thread_id="bd-1234",
+  subject="[bd-1234] Completed: checkout validation",
+  body_md="Landed commit abc123. Gates: type-check, lint, build, UBS. Reservations released."
+)`}
+          filename="Closeout Flow"
         />
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
           <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-            <span className="text-blue-400 font-semibold">Rate Limit Recovery</span>
-            <p className="text-white/80 text-sm mt-1">CAAM rotates accounts, NTM respawns with new credentials</p>
+            <span className="text-blue-400 font-semibold">Beads Closed</span>
+            <p className="text-white/80 text-sm mt-1">Finished work is closed and exported with <code>br sync --flush-only</code></p>
           </div>
           <div className="p-3 rounded-lg bg-violet-500/10 border border-violet-500/30">
-            <span className="text-violet-400 font-semibold">Crash Recovery</span>
-            <p className="text-white/80 text-sm mt-1">NTM auto-respawner detects exits and relaunches</p>
+            <span className="text-violet-400 font-semibold">Focused Commit</span>
+            <p className="text-white/80 text-sm mt-1">Only owned files and Beads export changes are staged</p>
           </div>
           <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
-            <span className="text-emerald-400 font-semibold">Stale Agent Detection</span>
-            <p className="text-white/80 text-sm mt-1">WA detects idle panes and flags unresponsive agents</p>
+            <span className="text-emerald-400 font-semibold">Reservations Released</span>
+            <p className="text-white/80 text-sm mt-1">Other agents can safely pick nearby work</p>
           </div>
           <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-            <span className="text-amber-400 font-semibold">Work Reassignment</span>
-            <p className="text-white/80 text-sm mt-1">BV re-triages remaining work when agents drop out</p>
+            <span className="text-amber-400 font-semibold">Thread Handoff</span>
+            <p className="text-white/80 text-sm mt-1">The final note lists changes, gates, and residual risk</p>
           </div>
         </div>
       </Section>
@@ -349,9 +371,9 @@ interface SwarmScenario {
 
 const SCENARIOS: SwarmScenario[] = [
   {
-    title: '1. Swarm Launch',
-    subtitle: 'NTM spawns 6 agents across 3 providers with staggered starts',
-    command: 'ntm spawn --cc=3 --cod=2 --gmi=1',
+    title: '1. Ready Work Selected',
+    subtitle: 'Robot triage surfaces unblocked Beads before agents start editing',
+    command: 'bv --robot-next && br ready --json',
     agentStatuses: { 'claude-1': 'spawning', 'claude-2': 'spawning', 'codex-1': 'spawning', 'gemini-1': 'spawning', 'claude-3': 'spawning', 'codex-2': 'spawning' },
     connections: [],
     messages: [],
@@ -368,9 +390,9 @@ const SCENARIOS: SwarmScenario[] = [
     ],
   },
   {
-    title: '2. Task Distribution',
-    subtitle: 'BV triages issues by label and assigns beads to each agent',
-    command: 'bv --robot-triage-by-label',
+    title: '2. Agent Mail Registered',
+    subtitle: 'Each agent registers identity, claims one Bead, and reserves its files',
+    command: 'ensure_project(...) && register_agent(...)',
     agentStatuses: { 'claude-1': 'working', 'claude-2': 'working', 'codex-1': 'working', 'gemini-1': 'working', 'claude-3': 'working', 'codex-2': 'working' },
     connections: [],
     messages: [],
@@ -394,9 +416,9 @@ const SCENARIOS: SwarmScenario[] = [
     ],
   },
   {
-    title: '3. File Conflict Detected',
-    subtitle: 'Claude-3 tries to edit src/api/routes.ts which Claude-1 owns exclusively',
-    command: 'am file_reservations check --path src/api/routes.ts',
+    title: '3. Reservation Conflict Detected',
+    subtitle: 'Claude-3 requests src/api/routes.ts while Claude-1 owns it exclusively',
+    command: 'file_reservation_paths(... paths=["src/api/routes.ts"])',
     agentStatuses: { 'claude-1': 'working', 'claude-2': 'working', 'codex-1': 'working', 'gemini-1': 'working', 'claude-3': 'conflict', 'codex-2': 'working' },
     connections: [['claude-3', 'claude-1']],
     messages: [],
@@ -422,7 +444,7 @@ const SCENARIOS: SwarmScenario[] = [
   {
     title: '4. Agent Communication',
     subtitle: 'Agents use Agent Mail to coordinate dependencies and hand off work',
-    command: 'am mail send --from claude-1 --to codex-1 --subject "API ready"',
+    command: 'send_message(... thread_id="bd-001")',
     agentStatuses: { 'claude-1': 'sending', 'claude-2': 'working', 'codex-1': 'working', 'gemini-1': 'sending', 'claude-3': 'working', 'codex-2': 'working' },
     connections: [['claude-1', 'codex-1'], ['gemini-1', 'claude-3'], ['claude-2', 'claude-1']],
     messages: [
@@ -450,10 +472,10 @@ const SCENARIOS: SwarmScenario[] = [
     ],
   },
   {
-    title: '5. Rate Limit Recovery',
-    subtitle: 'Codex-2 hits a rate limit; CAAM rotates credentials and NTM respawns',
-    command: 'caam rotate && ntm respawn codex-2',
-    agentStatuses: { 'claude-1': 'working', 'claude-2': 'done', 'codex-1': 'working', 'gemini-1': 'done', 'claude-3': 'working', 'codex-2': 'rate-limited' },
+    title: '5. Verification Gates',
+    subtitle: 'Heavy Rust checks use RCH and changed files are scanned with UBS',
+    command: 'rch exec -- cargo test && ubs <changed-files>',
+    agentStatuses: { 'claude-1': 'working', 'claude-2': 'done', 'codex-1': 'working', 'gemini-1': 'done', 'claude-3': 'working', 'codex-2': 'working' },
     connections: [],
     messages: [],
     reservations: {
@@ -474,9 +496,9 @@ const SCENARIOS: SwarmScenario[] = [
     ],
   },
   {
-    title: '6. Merge Coordination',
-    subtitle: 'Agents release file reservations and merge branches in sequence',
-    command: 'am file_reservations release --all && git merge --no-ff',
+    title: '6. Beads Closed and Synced',
+    subtitle: 'Finished Beads are closed, exported, and committed with the code',
+    command: 'br close bd-001 --reason "Done" && br sync --flush-only',
     agentStatuses: { 'claude-1': 'merging', 'claude-2': 'done', 'codex-1': 'merging', 'gemini-1': 'done', 'claude-3': 'merging', 'codex-2': 'merging' },
     connections: [['claude-1', 'codex-1'], ['claude-3', 'codex-2'], ['claude-1', 'claude-3']],
     messages: [],
@@ -494,8 +516,8 @@ const SCENARIOS: SwarmScenario[] = [
   },
   {
     title: '7. Swarm Complete',
-    subtitle: 'All tasks merged, tests pass, swarm session closed gracefully',
-    command: 'ntm stop --session swarm-01 --graceful',
+    subtitle: 'Reservations are released and the final handoff is posted in-thread',
+    command: 'release_file_reservations(...) && send_message(...)',
     agentStatuses: { 'claude-1': 'done', 'claude-2': 'done', 'codex-1': 'done', 'gemini-1': 'done', 'claude-3': 'done', 'codex-2': 'done' },
     connections: [],
     messages: [],

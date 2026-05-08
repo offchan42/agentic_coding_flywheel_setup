@@ -148,10 +148,10 @@ When you create a project with `acfs newproj`, this is set up automatically.
 
 ## Next
 
-Learn about SRPS (Structured Repository Problem Solving):
+Learn the hands-on coordination loop for a real multi-agent task:
 
 ```bash
-onboard 23
+onboard 22
 ```
 
 ---

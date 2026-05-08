@@ -15,6 +15,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { parseManifestFile, validateManifestData } from './parser.js';
 import {
+  validatePluginPackage,
+  formatPluginDiagnostics,
+  type PluginDiagnostic,
+  type PluginValidationTarget,
+} from './plugin.js';
+import {
   validateManifest as validateManifestAdvanced,
   formatValidationErrors,
   validateVerifiedInstallerChecksums,
@@ -39,6 +45,7 @@ const MANIFEST_PATH = join(PROJECT_ROOT, 'acfs.manifest.yaml');
 const OUTPUT_DIR = join(PROJECT_ROOT, 'scripts/generated');
 const WEB_OUTPUT_DIR = join(PROJECT_ROOT, 'apps/web/lib/generated');
 const CHECKSUMS_PATH = join(PROJECT_ROOT, 'checksums.yaml');
+const DEFAULT_PLUGIN_REGISTRY_PATH = join(PROJECT_ROOT, 'acfs.plugins.json');
 
 const HEADER = `#!/usr/bin/env bash
 # shellcheck disable=SC1091

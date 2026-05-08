@@ -117,6 +117,22 @@ export interface ModuleWebMetadata {
 }
 
 /**
+ * Provenance for modules supplied by a validated ACFS plugin package.
+ */
+export interface ModulePluginProvenance {
+  /** Plugin package identifier */
+  packageId: string;
+  /** Plugin package version */
+  version: string;
+  /** SHA256 of the plugin package archive */
+  pluginSha256: string;
+  /** Source ref recorded by the plugin package */
+  sourceRef: string;
+  /** Source commit recorded by the plugin package */
+  sourceCommit: string;
+}
+
+/**
  * A single module in the manifest
  * Modules represent installable tools, packages, or configurations
  */
@@ -161,6 +177,8 @@ export interface Module {
   aliases?: string[];
   /** Optional web-facing metadata for website content generation */
   web?: ModuleWebMetadata;
+  /** Present only for modules supplied by validated plugin packages */
+  plugin?: ModulePluginProvenance;
 }
 
 /**

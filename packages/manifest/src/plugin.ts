@@ -923,7 +923,7 @@ function validateModules(
   });
 }
 
-function toManifestModule(module: PluginModule): Module {
+function toManifestModule(plugin: PluginPackage, module: PluginModule): Module {
   const install = module.install as Record<string, unknown>;
   const kind = module.install.kind;
   const verifiedInstaller =
@@ -952,6 +952,13 @@ function toManifestModule(module: PluginModule): Module {
     dependencies: module.dependencies ? [...module.dependencies] : undefined,
     docs_url: module.docs_url,
     web: module.web,
+    plugin: {
+      packageId: plugin.packageId,
+      version: plugin.version,
+      pluginSha256: plugin.provenance.pluginSha256,
+      sourceRef: plugin.provenance.sourceRef,
+      sourceCommit: plugin.provenance.sourceCommit,
+    },
   };
 }
 
@@ -986,7 +993,7 @@ export function validatePluginPackage(
 
   const valid = diagnostics.every((diagnostic) => diagnostic.severity === 'warning');
   if (valid) {
-    manifestModules.push(...plugin.modules.map(toManifestModule));
+    manifestModules.push(...plugin.modules.map((module) => toManifestModule(plugin, module)));
   }
 
   return {

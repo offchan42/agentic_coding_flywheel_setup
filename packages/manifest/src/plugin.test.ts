@@ -147,6 +147,13 @@ describe('validatePluginPackage', () => {
     expect(result.manifestModules[0].id).toBe('plugin.example_tools.cli');
     expect(result.manifestModules[0].verified_installer?.tool).toBe('example_tools');
     expect(result.manifestModules[0].verified_installer?.url).toBe(INSTALLER_URL);
+    expect(result.manifestModules[0].plugin).toEqual({
+      packageId: 'example.tools',
+      version: '1.2.3',
+      pluginSha256: CHECKSUM,
+      sourceRef: 'main',
+      sourceCommit: '0123456789abcdef0123456789abcdef01234567',
+    });
   });
 
   test('rejects unsupported schema versions', () => {

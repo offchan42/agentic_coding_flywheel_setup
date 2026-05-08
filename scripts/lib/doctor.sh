@@ -995,6 +995,7 @@ print_acfs_help() {
     echo "  status [options]    Quick one-line health summary"
     echo "  capacity [options]  Estimate safe/recommended agent counts"
     echo "  policy-lint         Lint AGENTS/templates/docs for policy drift"
+    echo "  credential-preflight Read-only credential exposure preflight"
     echo "  swarm plan          Queue-aware launch advisor"
     echo "  swarm status        Local swarm/coordination JSON snapshot"
     echo "  swarm doctor        Pre-swarm coordination preflight"
@@ -4271,6 +4272,18 @@ main() {
             fi
 
             echo "Error: policy_lint.sh not found" >&2
+            return 1
+            ;;
+        credential-preflight|credential_preflight|secrets-preflight|secrets_preflight)
+            shift
+            local credential_preflight_script=""
+            credential_preflight_script="$(_acfs_doctor_find_lib_script "credential_preflight.sh" 2>/dev/null || true)"
+
+            if [[ -n "$credential_preflight_script" ]]; then
+                _acfs_doctor_exec_bash_script "$credential_preflight_script" "$@"
+            fi
+
+            echo "Error: credential_preflight.sh not found" >&2
             return 1
             ;;
         swarm)

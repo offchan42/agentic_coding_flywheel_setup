@@ -4003,6 +4003,14 @@ By default, sensitive data is automatically redacted:
 | Passwords | `"password": "..."` | `"password": "<REDACTED:password>"` |
 | Private key blocks | `-----BEGIN ... PRIVATE KEY-----` | `<REDACTED:private_key>` |
 
+Before launching a large agent swarm or sharing a support bundle, run a local credential preflight:
+
+```bash
+acfs credential-preflight --json
+```
+
+The preflight scans bounded ACFS state/log files plus shell config/history surfaces and reports only categories, counts, file labels, and remediation guidance. It never prints raw secret values or snippets.
+
 **Example workflow:**
 
 ```bash

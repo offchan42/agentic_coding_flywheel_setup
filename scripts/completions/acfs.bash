@@ -8,7 +8,7 @@ _acfs_completions() {
     local cur prev words cword
     _init_completion || return
 
-    local commands="newproj new services svc services-setup setup doctor check session sessions update status continue progress info i capacity cap policy-lint policy_lint swarm swarm-plan swarm_plan swarm-status swarm_status swarm-simulate swarm_simulate swarm-packet swarm_packet swarm-assign swarm_assign swarm-convergence swarm_convergence swarm-calibration swarm_calibration swarm-inventory swarm_inventory coordinate coord cheatsheet cs changelog changes log export-config export dashboard dash support-bundle bundle version help"
+    local commands="newproj new services svc services-setup setup doctor check session sessions update status continue progress info i capacity cap policy-lint policy_lint credential-preflight credential_preflight secrets-preflight secrets_preflight swarm swarm-plan swarm_plan swarm-status swarm_status swarm-simulate swarm_simulate swarm-packet swarm_packet swarm-assign swarm_assign swarm-convergence swarm_convergence swarm-calibration swarm_calibration swarm-inventory swarm_inventory coordinate coord cheatsheet cs changelog changes log export-config export dashboard dash support-bundle bundle version help"
 
     # Subcommand-specific flags
     local newproj_flags="-i --interactive --no-br --no-claude --no-agents -h --help"
@@ -17,6 +17,7 @@ _acfs_completions() {
     local info_flags="--json --html --minimal"
     local capacity_flags="--json --workload --profile --recommend-ntm -h --help"
     local policy_lint_flags="--json --human --root --file -h --help"
+    local credential_preflight_flags="--json --human --home --acfs-home --root --file --exclude --max-bytes -h --help"
     local swarm_subcommands="plan advisor status snapshot doctor preflight simulate packet assign convergence calibration inventory hosts host-inventory help"
     local swarm_plan_flags="--json --agents --profile --workload --status-file -h --help"
     local swarm_status_flags="--json -h --help"
@@ -47,7 +48,7 @@ _acfs_completions() {
     local cmd=""
     for ((i=1; i < cword; i++)); do
         case "${words[i]}" in
-            newproj|new|services|svc|services-setup|setup|doctor|check|session|sessions|update|status|continue|progress|info|i|capacity|cap|policy-lint|policy_lint|swarm|swarm-plan|swarm_plan|swarm-status|swarm_status|swarm-simulate|swarm_simulate|swarm-packet|swarm_packet|swarm-assign|swarm_assign|swarm-convergence|swarm_convergence|swarm-calibration|swarm_calibration|swarm-inventory|swarm_inventory|coordinate|coord|cheatsheet|cs|changelog|changes|log|export-config|export|dashboard|dash|support-bundle|bundle|version|help)
+            newproj|new|services|svc|services-setup|setup|doctor|check|session|sessions|update|status|continue|progress|info|i|capacity|cap|policy-lint|policy_lint|credential-preflight|credential_preflight|secrets-preflight|secrets_preflight|swarm|swarm-plan|swarm_plan|swarm-status|swarm_status|swarm-simulate|swarm_simulate|swarm-packet|swarm_packet|swarm-assign|swarm_assign|swarm-convergence|swarm_convergence|swarm-calibration|swarm_calibration|swarm-inventory|swarm_inventory|coordinate|coord|cheatsheet|cs|changelog|changes|log|export-config|export|dashboard|dash|support-bundle|bundle|version|help)
                 cmd="${words[i]}"
                 break
                 ;;
@@ -77,6 +78,10 @@ _acfs_completions() {
             ;;
         policy-lint|policy_lint)
             mapfile -t COMPREPLY < <(compgen -W "$policy_lint_flags" -- "$cur")
+            return
+            ;;
+        credential-preflight|credential_preflight|secrets-preflight|secrets_preflight)
+            mapfile -t COMPREPLY < <(compgen -W "$credential_preflight_flags" -- "$cur")
             return
             ;;
         swarm)

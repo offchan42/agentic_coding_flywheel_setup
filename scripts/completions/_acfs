@@ -68,6 +68,19 @@ _acfs() {
                         '-h[Show help message]' \
                         '--help[Show help message]'
                     ;;
+                credential-preflight|credential_preflight|secrets-preflight|secrets_preflight)
+                    _arguments \
+                        '--json[JSON output]' \
+                        '--human[Human-readable output]' \
+                        '--home[Target user home]:directory:_files -/' \
+                        '--acfs-home[ACFS home]:directory:_files -/' \
+                        '--root[Repository/root directory for relative paths]:directory:_files -/' \
+                        '--file[Scan one file]:file:_files' \
+                        '--exclude[Skip a file or directory]:path:_files' \
+                        '--max-bytes[Skip files larger than this]:bytes:' \
+                        '-h[Show help message]' \
+                        '--help[Show help message]'
+                    ;;
                 swarm)
                     _arguments -C \
                         '1: :_acfs_swarm_commands' \
@@ -398,6 +411,10 @@ _acfs_commands() {
         'cap:Capacity report (alias for capacity)'
         'policy-lint:Lint AGENTS/templates/docs for policy drift'
         'policy_lint:Lint AGENTS/templates/docs for policy drift'
+        'credential-preflight:Read-only credential exposure preflight'
+        'credential_preflight:Read-only credential exposure preflight'
+        'secrets-preflight:Alias for credential-preflight'
+        'secrets_preflight:Alias for credential-preflight'
         'swarm:Swarm plan, status, doctor, simulation, packets, and inventory'
         'swarm-plan:Queue-aware launch advisor'
         'swarm_plan:Queue-aware launch advisor'

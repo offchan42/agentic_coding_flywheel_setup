@@ -3,8 +3,8 @@
 Internal maintainer reference for the manifest-driven installer system.
 
 **Version:** 2.0.0
-**Bead:** mjt.3.6
-**Last Updated:** 2025-12-21
+**Bead:** mjt.3.6, bd-mitxy
+**Last Updated:** 2026-05-08
 
 ## Overview
 
@@ -108,6 +108,193 @@ installed_check:
 - `cli-modern` - Modern CLI tool replacements
 - `cloud` - Cloud provider integrations
 - `database` - Database tools
+
+## Module Selection Resolver Contract
+
+This contract defines the shared selection behavior that `install.sh`, generated manifest metadata, the website command builder, and the future onboarding TUI must converge on. There must be one resolver semantics model: UI profiles and repair commands map into the selectors below, then the resolver produces the effective plan. No UI surface should maintain a separate dependency graph or copy of module defaults.
+
+### Contract Owners
+
+| Surface | Responsibility |
+|---------|----------------|
+| `acfs.manifest.yaml` | Source of truth for module IDs, phases, categories, tags, defaults, dependencies, verification, and verified-installer usage |
+| `packages/manifest/src/generate.ts` | Sorts modules deterministically and emits data-only Bash arrays in `scripts/generated/manifest_index.sh` |
+| `scripts/generated/manifest_index.sh` | Runtime metadata bridge: `ACFS_MODULES_IN_ORDER`, `ACFS_MODULE_PHASE`, `ACFS_MODULE_DEPS`, `ACFS_MODULE_FUNC`, `ACFS_MODULE_CATEGORY`, `ACFS_MODULE_TAGS`, `ACFS_MODULE_DEFAULT`, and installed-check arrays |
+| `scripts/lib/install_helpers.sh` | Runtime resolver implementation: validates selectors, expands dependencies, applies skips, and populates `ACFS_EFFECTIVE_PLAN`, `ACFS_EFFECTIVE_RUN`, `ACFS_PLAN_REASON`, and `ACFS_PLAN_EXCLUDE_REASON` |
+| `install.sh` | Parses CLI flags, maps legacy skip flags, calls the resolver before mutation, prints `--print-plan`, and executes only modules in the effective plan |
+| `apps/web/lib/commandBuilder.ts` | Emits installer commands. Today this only passes mode, ref, and target user; future profile controls must serialize to the same public selectors |
+| `packages/onboard/` | Future TUI selector UI. It must display profiles and modules from generated/shared metadata and submit the same selector payload |
+
+### Selector Inputs
+
+The resolver input model is additive and order-independent except where precedence is explicitly stated.
+
+| Input | CLI today | Meaning |
+|-------|-----------|---------|
+| Install mode | `--mode safe`, `--mode vibe` | Controls installer behavior and copy. It does not change module selection by itself. |
+| Explicit modules | Repeated `--only <module-id>` | Start from these module IDs. Unknown IDs are errors. |
+| Explicit phases | Repeated `--only-phase <phase-or-alias>` | Start from all modules in those phases. Unknown phases are errors. |
+| Explicit skips | Repeated `--skip <module-id>` | Exclude these module IDs. Unknown IDs are errors. |
+| Legacy skips | `--skip-postgres`, `--skip-vault`, `--skip-cloud` | Compatibility wrappers that append concrete module IDs to `SKIP_MODULES`. New selectors should not add new legacy flags. |
+| Skip tags | Internal `SKIP_TAGS` array | Exclude modules whose generated tag list contains the tag. Not currently exposed as a public CLI flag. |
+| Skip categories | Internal `SKIP_CATEGORIES` array | Exclude modules whose generated category matches the category. Not currently exposed as a public CLI flag. |
+| Dependency mode | `--no-deps` | Disables recursive dependency closure and dependency-skip errors, except direct `--only`/`--skip` contradictions still fail. |
+| Plan mode | `--print-plan` | Resolves the plan and exits before generated installers are sourced or any install mutation runs. |
+
+When both `--only` and `--only-phase` are supplied, the current resolver gives `--only` precedence and ignores phase starts. Future profile and TUI surfaces must avoid generating both. If a richer selector UI needs mixed module and phase starts, add an explicit resolver test before changing this rule.
+
+### Phase Aliases
+
+`--only-phase` accepts either a phase number or one of the aliases below. Aliases are normalized before validation.
+
+| Phase | Aliases |
+|-------|---------|
+| 1 | `base`, `base_deps`, `system` |
+| 2 | `user_setup`, `user`, `users` |
+| 3 | `filesystem`, `fs` |
+| 4 | `shell_setup`, `shell` |
+| 5 | `cli_tools`, `cli` |
+| 6 | `languages`, `language`, `lang` |
+| 7 | `agents`, `agent` |
+| 8 | `cloud_db`, `cloud-db` |
+| 9 | `stack` |
+| 10 | `finalize`, `final` |
+
+### Resolution Algorithm
+
+Implementations must produce the same effective plan for the same manifest and selector payload:
+
+1. Load `scripts/generated/manifest_index.sh`; fail if `ACFS_MANIFEST_INDEX_LOADED` is not true.
+2. Normalize phase aliases.
+3. Build `module_exists` and `phase_exists` from `ACFS_MODULES_IN_ORDER` and `ACFS_MODULE_PHASE`.
+4. Choose the starting set:
+   - if `ONLY_MODULES` is non-empty, validate each module and mark it `explicitly requested`;
+   - else if `ONLY_PHASES` is non-empty, validate each phase and mark modules in those phases as `phase <n>`;
+   - else include every module whose `ACFS_MODULE_DEFAULT` value is `1` or `true` and mark it `default`.
+5. Validate each explicit skip module and build the skip set.
+6. Add modules selected by internal `SKIP_TAGS` and `SKIP_CATEGORIES` to the skip set.
+7. Fail if a module appears in both `ONLY_MODULES` and the skip set. The failure must name the module and the skip reason.
+8. Remove skipped modules from the desired set and record `ACFS_PLAN_EXCLUDE_REASON`.
+9. If `NO_DEPS` is false, walk dependencies from every desired module and fail if any dependency chain reaches a skipped module. The failure must include the chain.
+10. If `NO_DEPS` is false, recursively add every dependency from `ACFS_MODULE_DEPS`, including dependencies that are disabled by default. Unknown dependencies are manifest errors.
+11. If `NO_DEPS` is true, do not add dependencies and print a prominent warning.
+12. Emit `ACFS_EFFECTIVE_PLAN` by iterating `ACFS_MODULES_IN_ORDER`; this preserves phase order and topological order from the generator.
+13. Emit `ACFS_EFFECTIVE_RUN[module]=1` for every included module and exclusion reasons for everything not included.
+
+### Required Core Modules
+
+The resolver does not hard-code a separate required-module list. Requiredness is expressed through dependencies, `enabled_by_default`, and tags such as `critical`. A skip is allowed only when it does not break the selected dependency graph, or when `--no-deps` is explicitly set for debugging. User-facing profile UIs must explain any skipped `critical` module before generating a command, and the generated command should prefer `--print-plan` first.
+
+### Profiles and Groups
+
+Profiles are UI conveniences, not resolver modes. A profile must lower to explicit modules, phases, or skips before resolution.
+
+| Profile or group | Selector payload | Notes |
+|------------------|------------------|-------|
+| `full` | no `--only` or `--only-phase`; no profile skips | Installs every `enabled_by_default` module plus any dependencies. |
+| `safe` | `--mode safe`; no selection change | Same module set as `full` unless the user adds selectors. |
+| `vibe` | `--mode vibe`; no selection change | Same module set as `full` unless the user adds selectors. |
+| `minimal` | explicit allowlist below, then resolved with dependencies | Intended for the smallest supported beginner install. Until implemented, do not fake this in the web app with a handwritten list. |
+| `agents-only` | `--only-phase agents` | Includes agent modules plus dependencies such as `lang.bun` and `lang.nvm`. |
+| `cloud-only` | `--only cloud.wrangler --only cloud.supabase --only cloud.vercel` | Includes cloud CLIs plus dependencies. Use `--only-phase cloud-db` only when Vault and PostgreSQL should also be included. |
+| `stack-only` | `--only-phase stack` | Includes stack and utility modules in phase 9 plus dependencies. |
+
+If a profile needs a curated list rather than a phase, add the list to a shared generated metadata artifact and cover it with resolver fixture tests. Do not duplicate the list in `install.sh`, the web app, and the TUI.
+
+The initial `minimal` allowlist is:
+
+```text
+shell.omz
+cli.modern
+lang.bun
+lang.uv
+agents.claude
+agents.codex
+agents.gemini
+stack.ntm
+stack.mcp_agent_mail
+stack.ultimate_bug_scanner
+stack.beads_rust
+stack.beads_viewer
+stack.cass
+stack.cm
+stack.dcg
+stack.ru
+stack.rch
+acfs.workspace
+acfs.onboard
+acfs.update
+acfs.doctor
+```
+
+Dependency closure adds required prerequisites such as `base.system`, `users.ubuntu`, `base.filesystem`, `shell.zsh`, `lang.rust`, `lang.go`, `lang.nvm`, and `tools.ast_grep` where the manifest graph requires them. The minimal profile intentionally excludes optional cloud/database modules, optional agents such as `agents.opencode`, broad utility extras, nightly auto-update, and non-essential shell/CLI niceties unless the user adds them explicitly.
+
+### Examples
+
+Default vibe install:
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/agentic_coding_flywheel_setup/main/install.sh" \
+  | bash -s -- --yes --mode vibe --print-plan
+```
+
+Safe mode with the same default module set:
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/Dicklesworthstone/agentic_coding_flywheel_setup/main/install.sh" \
+  | bash -s -- --yes --mode safe --print-plan
+```
+
+Minimal profile, once a shared profile artifact exists:
+
+```bash
+curl -fsSL "..." | bash -s -- --yes --profile minimal --print-plan
+```
+
+Until `--profile` exists, UIs must not emit that command. They should either hide the profile or lower it to tested `--only` selectors from shared metadata.
+
+Cloud-only plan:
+
+```bash
+curl -fsSL "..." | bash -s -- --yes \
+  --only cloud.wrangler \
+  --only cloud.supabase \
+  --only cloud.vercel \
+  --print-plan
+```
+
+Stack-only plan:
+
+```bash
+curl -fsSL "..." | bash -s -- --yes --only-phase stack --print-plan
+```
+
+Invalid selector examples that must fail before mutation:
+
+```bash
+curl -fsSL "..." | bash -s -- --yes --only agents.not_real --print-plan
+# Error: Unknown module id in --only: agents.not_real
+
+curl -fsSL "..." | bash -s -- --yes --only agents.codex --skip lang.bun --print-plan
+# Error: Selection error: agents.codex depends on skipped lang.bun
+# Error: Dependency chain: agents.codex -> lang.bun
+
+curl -fsSL "..." | bash -s -- --yes --only agents.codex --skip agents.codex --no-deps --print-plan
+# Error: Selection error: agents.codex was requested with --only and excluded by explicitly skipped
+```
+
+### Fixture Requirements
+
+Resolver tests should be writable from this contract without reading historical discussion. Every shared fixture should include:
+
+- `name`: stable scenario name.
+- `input`: mode, explicit modules, phases, skips, skip tags, skip categories, dependency mode, and profile if present.
+- `expected_included`: ordered module IDs from `ACFS_EFFECTIVE_PLAN`.
+- `expected_excluded`: module IDs with exclusion reasons when relevant.
+- `expected_errors`: exact error fragments for invalid selectors.
+- `expected_warnings`: warning fragments, especially for `--no-deps`.
+
+The minimum fixture set must cover default `safe`, default `vibe`, `minimal` profile lowering, `cloud-only`, `stack-only`, unknown module, unknown phase, direct `--only`/`--skip` contradiction, skipped dependency with and without `--no-deps`, legacy skip mapping, and deterministic plan ordering.
 
 ### Metadata Fields
 

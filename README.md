@@ -2489,6 +2489,8 @@ ACFS works on any Ubuntu VPS with SSH key login. Here are recommended providers 
 
 > **Why 48-64GB RAM?** Each AI coding agent uses ~2GB RAM. To run 10-20+ agents simultaneously, you need 48GB+ RAM. Don't bottleneck a $400+/month AI investment to save $20 on hosting.
 
+After installation, run `acfs capacity --profile 25-agents --recommend-ntm` on the VPS for a local RAM/CPU/disk sizing report with recommended agent counts and copyable NTM launch profiles.
+
 ### Contabo (Best Value — Top Pick)
 
 | Plan | RAM | vCPU | Storage | Price | Notes |

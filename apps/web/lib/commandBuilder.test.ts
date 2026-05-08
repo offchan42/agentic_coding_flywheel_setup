@@ -4,9 +4,12 @@ import {
   buildHandoffRunbook,
   buildInstallCommand,
   buildTeamProfile,
+  buildTeamProfileImportDiff,
   buildShareURL,
   formatHandoffRunbookMarkdown,
+  formatTeamProfileImportDiffMarkdown,
   formatTeamProfileReviewMarkdown,
+  serializeTeamProfileImportDiffJson,
   serializeHandoffRunbookJson,
   serializeTeamProfileJson,
 } from "./commandBuilder";
@@ -404,6 +407,162 @@ describe("buildTeamProfile", () => {
     expect(profile.redaction.allowSecretValues).toBe(false);
     expect(profile.redaction.secretSlotsRequired).toBe(true);
     expect(profile.serviceAccounts.every((account) => account.secretSlot.startsWith("secret://acfs/team/"))).toBe(true);
+  });
+});
+
+describe("buildTeamProfileImportDiff", () => {
+  const generatedAt = "2026-05-08T00:00:00Z";
+
+  function sampleProfile() {
+    return buildTeamProfile({
+      ip: "203.0.113.42",
+      os: "mac",
+      username: "dev-user",
+      mode: "safe",
+      ref: "v1.2.3",
+      generatedAt,
+      providerSelection: {
+        providerId: "contabo",
+        planName: "Cloud VPS 50",
+        ubuntuVersion: "25.10",
+        region: "us",
+        targetAgents: 10,
+        workloadId: "standard",
+      },
+      moduleSelection: {
+        profile: "cloud-only",
+      },
+    });
+  }
+
+  test("builds a machine-readable dry-run diff for a compatible profile", () => {
+    const diff = buildTeamProfileImportDiff(sampleProfile(), {
+      providerSelection: {
+        providerId: "other",
+        planName: "custom plan",
+        region: "not-listed",
+      },
+      installMode: "vibe",
+      ref: null,
+      username: "ubuntu",
+      moduleSelection: { profile: "full" },
+    });
+    const json = serializeTeamProfileImportDiffJson(diff);
+    const markdown = formatTeamProfileImportDiffMarkdown(diff);
+
+    expect(diff.schema).toBe("acfs.team-profile-import-diff.v1");
+    expect(diff.dryRun).toBe(true);
+    expect(diff.ok).toBe(true);
+    expect(diff.safeDefaults.changes.map((change) => change.field)).toContain("providerDefaults.provider");
+    expect(diff.installerCommand.command).toContain('--ref "v1.2.3"');
+    expect(diff.installerCommand.command).toContain('--only "cloud.wrangler"');
+    expect(diff.secretSlots.required).toEqual(["secret://acfs/team/github-auth"]);
+    expect(json).toContain("\"dryRun\": true");
+    expect(markdown).toContain("Status: ready");
+    expect(markdown).toContain("## Installer Command");
+  });
+
+  test("blocks newer schemas before exposing profile contents", () => {
+    const profile = {
+      ...sampleProfile(),
+      schemaVersion: 2,
+    };
+    const diff = buildTeamProfileImportDiff(profile);
+
+    expect(diff.ok).toBe(false);
+    expect(diff.profile).toBeNull();
+    expect(diff.incompatibilities.map((finding) => finding.code)).toContain("team_profile_schema_unsupported");
+    expect(diff.installerCommand.command).toBeNull();
+  });
+
+  test("reports missing required fields without generating commands", () => {
+    const profile = sampleProfile();
+    const incomplete = {
+      ...profile,
+      providerDefaults: {
+        ...profile.providerDefaults,
+      },
+    };
+    delete (incomplete.providerDefaults as Partial<typeof incomplete.providerDefaults>).provider;
+
+    const diff = buildTeamProfileImportDiff(incomplete);
+
+    expect(diff.ok).toBe(false);
+    expect(diff.profile).toBeNull();
+    expect(diff.findings).toContainEqual(expect.objectContaining({
+      code: "team_profile_missing_required_field",
+      path: "providerDefaults.provider",
+    }));
+    expect(diff.installerCommand.command).toBeNull();
+  });
+
+  test("refuses secret-bearing profiles without echoing credential-like values", () => {
+    const credentialLikeValue = ["Bea", "rer <credential>"].join("");
+    const profile = {
+      ...sampleProfile(),
+      extensions: {
+        providerToken: credentialLikeValue,
+      },
+    };
+    const diff = buildTeamProfileImportDiff(profile);
+    const json = serializeTeamProfileImportDiffJson(diff);
+
+    expect(diff.ok).toBe(false);
+    expect(diff.profile).toBeNull();
+    expect(diff.refusals.map((finding) => finding.code)).toContain("team_profile_forbidden_field");
+    expect(diff.refusals.map((finding) => finding.code)).toContain("team_profile_secret_material_refused");
+    expect(json).not.toContain("Bearer");
+    expect(json).not.toContain("<credential>");
+  });
+
+  test("shows provider mismatches as safe default changes", () => {
+    const diff = buildTeamProfileImportDiff(sampleProfile(), {
+      providerSelection: {
+        providerId: "hetzner",
+        planName: "CX51",
+        region: "eu-central",
+      },
+      installMode: "safe",
+      ref: "v1.2.3",
+      username: "dev-user",
+      moduleSelection: { profile: "cloud-only" },
+    });
+
+    expect(diff.ok).toBe(true);
+    expect(diff.safeDefaults.changes).toContainEqual({
+      field: "providerDefaults.provider",
+      current: "hetzner",
+      next: "contabo",
+    });
+    expect(diff.safeDefaults.changes).toContainEqual({
+      field: "providerDefaults.planClass",
+      current: "CX51",
+      next: "Cloud VPS 50",
+    });
+    expect(diff.installerCommand.changes).toEqual([]);
+  });
+
+  test("blocks dry-run command output when module selectors are incompatible", () => {
+    const profile = {
+      ...sampleProfile(),
+      install: {
+        ...sampleProfile().install,
+        profile: "full",
+        modules: {
+          only: ["not.real"],
+          onlyPhases: [],
+          skip: [],
+          noDeps: false,
+        },
+      },
+    };
+    const diff = buildTeamProfileImportDiff(profile);
+    const markdown = formatTeamProfileImportDiffMarkdown(diff);
+
+    expect(diff.ok).toBe(false);
+    expect(diff.incompatibilities.map((finding) => finding.code)).toContain("team_profile_unknown_module");
+    expect(diff.installerCommand.command).toBeNull();
+    expect(markdown).toContain("Blocked until incompatibilities and refusals are resolved.");
   });
 });
 

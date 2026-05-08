@@ -13,7 +13,7 @@ import {
   resolveModuleSelection,
   type ModuleSelectionInput,
 } from "./moduleSelection";
-import { manifestProvenance } from "./generated/manifest-modules";
+import { manifestProvenance, manifestSelectionProfiles } from "./generated/manifest-modules";
 import { isValidIP, normalizeGitRef, normalizeSSHUsername } from "./userPreferences";
 
 const INSTALL_SCRIPT_BASE_URL =
@@ -197,6 +197,77 @@ export interface TeamProfile {
   };
 }
 
+export type TeamProfileImportCode =
+  | "team_profile_missing_schema"
+  | "team_profile_schema_unsupported"
+  | "team_profile_missing_required_field"
+  | "team_profile_secret_material_refused"
+  | "team_profile_forbidden_field"
+  | "team_profile_unknown_module"
+  | "team_profile_unknown_phase"
+  | "team_profile_manifest_mismatch"
+  | "team_profile_checksums_mismatch"
+  | "team_profile_arch_unsupported"
+  | "team_profile_ubuntu_unsupported"
+  | "team_profile_no_deps_refused"
+  | "team_profile_ref_policy_mismatch"
+  | "team_profile_unknown_top_level_field";
+
+export interface TeamProfileImportFinding {
+  code: TeamProfileImportCode;
+  severity: "error" | "warning";
+  path: string;
+  message: string;
+}
+
+export interface TeamProfileImportChange {
+  field: string;
+  current: string | number | boolean | string[] | null;
+  next: string | number | boolean | string[] | null;
+}
+
+export interface TeamProfileImportCurrentState {
+  providerSelection?: Partial<VPSReadinessSelection> | null;
+  installMode?: InstallMode;
+  ref?: string | null;
+  username?: string | null;
+  architecture?: TeamProfileArchitecture;
+  ubuntuVersion?: string;
+  moduleSelection?: ModuleSelectionInput;
+}
+
+export interface TeamProfileImportDiff {
+  schema: "acfs.team-profile-import-diff.v1";
+  schemaVersion: 1;
+  dryRun: true;
+  ok: boolean;
+  profile: {
+    profileId: string;
+    displayName: string;
+    schemaVersion: number;
+  } | null;
+  findings: TeamProfileImportFinding[];
+  safeDefaults: {
+    changes: TeamProfileImportChange[];
+  };
+  installerCommand: {
+    command: string | null;
+    changes: TeamProfileImportChange[];
+  };
+  dependencyClosure: string[];
+  skips: {
+    requested: string[];
+    allowed: boolean;
+    warnings: string[];
+  };
+  secretSlots: {
+    required: string[];
+    optional: string[];
+  };
+  incompatibilities: TeamProfileImportFinding[];
+  refusals: TeamProfileImportFinding[];
+}
+
 const TEAM_PROFILE_FORBIDDEN_FIELDS = [
   "token",
   "apiKey",
@@ -246,6 +317,48 @@ const TEAM_PROFILE_SERVICE_ACCOUNTS: TeamProfileServiceAccount[] = [
     secretSlot: teamProfileSlot("vercel-auth"),
   },
 ];
+
+const TEAM_PROFILE_REQUIRED_PATHS = [
+  "schema",
+  "schemaVersion",
+  "profileId",
+  "displayName",
+  "generatedAt",
+  "generatedBy",
+  "provenance.source.acfsRef",
+  "provenance.source.manifestSha256",
+  "provenance.source.checksumsYamlSha256",
+  "providerDefaults.provider",
+  "providerDefaults.operatingSystem",
+  "providerDefaults.architecture",
+  "providerDefaults.sshUser",
+  "install.mode",
+  "install.ref",
+  "install.modules",
+  "redaction.allowSecretValues",
+  "redaction.secretSlotsRequired",
+];
+
+const TEAM_PROFILE_ALLOWED_TOP_LEVEL_FIELDS = new Set([
+  "schema",
+  "schemaVersion",
+  "profileId",
+  "displayName",
+  "description",
+  "generatedAt",
+  "generatedBy",
+  "provenance",
+  "compatibility",
+  "providerDefaults",
+  "install",
+  "shellPreferences",
+  "lessonChoices",
+  "serviceAccounts",
+  "redaction",
+  "extensions",
+]);
+
+const TEAM_PROFILE_PROFILE_IDS = new Set<string>(manifestSelectionProfiles.map((profile) => profile.id));
 
 function sshKeyPath(): string {
   return SSH_KEY_PATH_UNIX;
@@ -661,6 +774,436 @@ export function formatTeamProfileReviewMarkdown(profile: TeamProfile): string {
     "",
     "- Credential-like provider values, raw host addresses, private keys, local paths, and token material are omitted or replaced with safe defaults before export.",
     "- Secret slots are placeholders only; no secret values are stored in this profile.",
+    "",
+  ].join("\n");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function valueAtPath(record: Record<string, unknown>, path: string): unknown {
+  return path.split(".").reduce<unknown>((current, part) => {
+    if (!isRecord(current)) return undefined;
+    return current[part];
+  }, record);
+}
+
+function importFinding(
+  code: TeamProfileImportCode,
+  path: string,
+  message: string,
+  severity: TeamProfileImportFinding["severity"] = "error",
+): TeamProfileImportFinding {
+  return { code, severity, path, message };
+}
+
+function isAllowedPolicyPath(path: string): boolean {
+  return path === "redaction"
+    || path.startsWith("redaction.")
+    || path === "provenance.source.manifestSha256"
+    || path === "provenance.source.checksumsYamlSha256"
+    || path.startsWith("install.modulePlan.")
+    || /^serviceAccounts\.[0-9]+\.(authMethod|secretSlot)$/.test(path);
+}
+
+function collectSecurityFindings(
+  value: unknown,
+  path: string,
+  findings: TeamProfileImportFinding[],
+): void {
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => collectSecurityFindings(entry, `${path}.${index}`, findings));
+    return;
+  }
+
+  if (isRecord(value)) {
+    for (const [key, child] of Object.entries(value)) {
+      const childPath = path ? `${path}.${key}` : key;
+      const loweredKey = key.toLowerCase();
+      const forbiddenKey = TEAM_PROFILE_FORBIDDEN_FIELDS.find((field) => loweredKey.includes(field.toLowerCase()));
+      if (forbiddenKey && !isAllowedPolicyPath(childPath)) {
+        findings.push(importFinding(
+          "team_profile_forbidden_field",
+          childPath,
+          `Forbidden credential-like field name matches ${forbiddenKey}.`,
+        ));
+      }
+      collectSecurityFindings(child, childPath, findings);
+    }
+    return;
+  }
+
+  if (typeof value === "string" && !isAllowedPolicyPath(path) && looksCredentialLikeValue(value)) {
+    findings.push(importFinding(
+      "team_profile_secret_material_refused",
+      path,
+      "Credential-like or host-identifying value refused.",
+    ));
+  }
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function isInstallMode(value: unknown): value is InstallMode {
+  return value === "vibe" || value === "safe";
+}
+
+function isProfileId(value: unknown): value is NonNullable<ModuleSelectionInput["profile"]> {
+  return typeof value === "string" && TEAM_PROFILE_PROFILE_IDS.has(value);
+}
+
+function importedModuleSelection(profile: TeamProfile): ModuleSelectionInput {
+  const install = profile.install as Omit<TeamProfile["install"], "modules"> & {
+    modules: Partial<Omit<TeamProfile["install"]["modules"], "noDeps">> & { noDeps?: boolean };
+  };
+
+  return {
+    profile: isProfileId(install.profile) ? install.profile : "full",
+    onlyModules: sortUnique(asStringArray(install.modules.only)),
+    onlyPhases: sortUnique(asStringArray(install.modules.onlyPhases)),
+    skipModules: sortUnique(asStringArray(install.modules.skip)),
+    noDeps: install.modules.noDeps === true,
+  };
+}
+
+function compareChange(
+  field: string,
+  current: TeamProfileImportChange["current"],
+  next: TeamProfileImportChange["next"],
+): TeamProfileImportChange | null {
+  if (JSON.stringify(current) === JSON.stringify(next)) return null;
+  return { field, current, next };
+}
+
+function compactChanges(changes: Array<TeamProfileImportChange | null>): TeamProfileImportChange[] {
+  return changes.filter((change): change is TeamProfileImportChange => change !== null);
+}
+
+function validateTeamProfileForImport(
+  input: unknown,
+  current: TeamProfileImportCurrentState,
+): TeamProfileImportFinding[] {
+  const findings: TeamProfileImportFinding[] = [];
+  if (!isRecord(input)) {
+    return [
+      importFinding("team_profile_missing_schema", "schema", "Profile must be a JSON object with a supported schema."),
+    ];
+  }
+
+  const schema = input.schema;
+  const schemaVersion = input.schemaVersion;
+  if (schema !== TEAM_PROFILE_SCHEMA) {
+    findings.push(importFinding(
+      schema === undefined ? "team_profile_missing_schema" : "team_profile_schema_unsupported",
+      "schema",
+      `Expected ${TEAM_PROFILE_SCHEMA}.`,
+    ));
+  }
+  if (schemaVersion !== TEAM_PROFILE_SCHEMA_VERSION) {
+    findings.push(importFinding(
+      "team_profile_schema_unsupported",
+      "schemaVersion",
+      `Expected schemaVersion ${TEAM_PROFILE_SCHEMA_VERSION}.`,
+    ));
+  }
+
+  for (const key of Object.keys(input)) {
+    if (!TEAM_PROFILE_ALLOWED_TOP_LEVEL_FIELDS.has(key)) {
+      findings.push(importFinding(
+        "team_profile_unknown_top_level_field",
+        key,
+        `Unknown top-level field ${key}; use extensions for future metadata.`,
+      ));
+    }
+  }
+
+  for (const path of TEAM_PROFILE_REQUIRED_PATHS) {
+    if (valueAtPath(input, path) === undefined) {
+      findings.push(importFinding("team_profile_missing_required_field", path, `Missing required field ${path}.`));
+    }
+  }
+
+  collectSecurityFindings(input, "", findings);
+
+  const redaction = isRecord(input.redaction) ? input.redaction : {};
+  if (redaction.allowSecretValues !== false) {
+    findings.push(importFinding(
+      "team_profile_secret_material_refused",
+      "redaction.allowSecretValues",
+      "Profiles must set redaction.allowSecretValues to false.",
+    ));
+  }
+  if (redaction.secretSlotsRequired !== true) {
+    findings.push(importFinding(
+      "team_profile_missing_required_field",
+      "redaction.secretSlotsRequired",
+      "Profiles must require secret-slot placeholders.",
+    ));
+  }
+
+  const compatibility = isRecord(input.compatibility) ? input.compatibility : {};
+  const targetUbuntuVersions = asStringArray(compatibility.targetUbuntuVersions);
+  const targetUbuntu = current.ubuntuVersion ?? "25.10";
+  if (targetUbuntuVersions.length > 0 && !targetUbuntuVersions.includes(targetUbuntu)) {
+    findings.push(importFinding(
+      "team_profile_ubuntu_unsupported",
+      "compatibility.targetUbuntuVersions",
+      `Profile does not list Ubuntu ${targetUbuntu}.`,
+    ));
+  }
+
+  const architectures = asStringArray(compatibility.architectures);
+  const architecture = current.architecture ?? "x86_64";
+  if (architectures.length > 0 && !architectures.includes(architecture)) {
+    findings.push(importFinding(
+      "team_profile_arch_unsupported",
+      "compatibility.architectures",
+      `Profile does not list architecture ${architecture}.`,
+    ));
+  }
+
+  const provenance = isRecord(input.provenance) && isRecord(input.provenance.source)
+    ? input.provenance.source
+    : {};
+  if (provenance.manifestSha256 && provenance.manifestSha256 !== manifestProvenance.manifestSha256) {
+    findings.push(importFinding(
+      "team_profile_manifest_mismatch",
+      "provenance.source.manifestSha256",
+      "Profile was generated from a different acfs.manifest.yaml.",
+    ));
+  }
+  if (provenance.checksumsYamlSha256 && provenance.checksumsYamlSha256 !== manifestProvenance.checksumsYamlSha256) {
+    findings.push(importFinding(
+      "team_profile_checksums_mismatch",
+      "provenance.source.checksumsYamlSha256",
+      "Profile was generated from a different checksums.yaml.",
+    ));
+  }
+
+  const install = isRecord(input.install) ? input.install : {};
+  if (install.mode !== undefined && !isInstallMode(install.mode)) {
+    findings.push(importFinding(
+      "team_profile_schema_unsupported",
+      "install.mode",
+      "install.mode must be either vibe or safe.",
+    ));
+  }
+  const ref = isRecord(install.ref) ? install.ref : {};
+  if (ref.pinOnExport !== true) {
+    findings.push(importFinding(
+      "team_profile_ref_policy_mismatch",
+      "install.ref.pinOnExport",
+      "Profile imports require install.ref.pinOnExport to be true.",
+    ));
+  }
+  const modules = isRecord(install.modules) ? install.modules : {};
+  if (modules.noDeps === true) {
+    findings.push(importFinding(
+      "team_profile_no_deps_refused",
+      "install.modules.noDeps",
+      "Profile import refuses --no-deps unless a future expert confirmation path is added.",
+    ));
+  }
+
+  const moduleSelection: ModuleSelectionInput = {
+    profile: isProfileId(install.profile) ? install.profile : "full",
+    onlyModules: asStringArray(modules.only),
+    onlyPhases: asStringArray(modules.onlyPhases),
+    skipModules: asStringArray(modules.skip),
+    noDeps: modules.noDeps === true,
+  };
+  const plan = resolveModuleSelection(moduleSelection);
+  for (const error of plan.errors) {
+    const code = error.includes("phase")
+      ? "team_profile_unknown_phase"
+      : "team_profile_unknown_module";
+    findings.push(importFinding(code, "install.modules", error));
+  }
+
+  return findings;
+}
+
+function importDiffCanRevealProfile(findings: TeamProfileImportFinding[]): boolean {
+  return !findings.some((finding) =>
+    finding.code === "team_profile_missing_schema"
+    || finding.code === "team_profile_schema_unsupported"
+    || finding.code === "team_profile_missing_required_field"
+    || finding.code === "team_profile_secret_material_refused"
+    || finding.code === "team_profile_forbidden_field"
+    || finding.code === "team_profile_unknown_top_level_field"
+  );
+}
+
+function currentSourceRef(current: TeamProfileImportCurrentState): string {
+  return normalizeGitRef(current.ref) ?? DEFAULT_INSTALL_REF;
+}
+
+export function buildTeamProfileImportDiff(
+  input: unknown,
+  current: TeamProfileImportCurrentState = {},
+): TeamProfileImportDiff {
+  const findings = validateTeamProfileForImport(input, current);
+  const refusals = findings.filter((finding) =>
+    finding.code === "team_profile_secret_material_refused"
+    || finding.code === "team_profile_forbidden_field"
+    || finding.code === "team_profile_unknown_top_level_field"
+  );
+  const incompatibilities = findings.filter((finding) => !refusals.includes(finding));
+  const profile = importDiffCanRevealProfile(findings) && isRecord(input)
+    ? input as unknown as TeamProfile
+    : null;
+
+  if (!profile) {
+    return {
+      schema: "acfs.team-profile-import-diff.v1",
+      schemaVersion: 1,
+      dryRun: true,
+      ok: false,
+      profile: null,
+      findings,
+      safeDefaults: { changes: [] },
+      installerCommand: { command: null, changes: [] },
+      dependencyClosure: [],
+      skips: { requested: [], allowed: false, warnings: [] },
+      secretSlots: { required: [], optional: [] },
+      incompatibilities,
+      refusals,
+    };
+  }
+
+  const moduleSelection = importedModuleSelection(profile);
+  const modulePlan = buildTeamProfileModulePlan(moduleSelection);
+  const commandRef = profile.install.ref.value === DEFAULT_INSTALL_REF ? null : profile.install.ref.value;
+  const commandAllowed = findings.length === 0 && modulePlan.ok;
+  const currentProvider = current.providerSelection ?? null;
+  const currentModules = normalizeTeamModuleSelection(current.moduleSelection);
+  const installerChanges = compactChanges([
+    compareChange("install.mode", current.installMode ?? null, profile.install.mode),
+    compareChange("install.ref.value", currentSourceRef(current), profile.install.ref.value),
+    compareChange("install.profile", currentModules.profile, moduleSelection.profile ?? "full"),
+    compareChange("install.modules.only", currentModules.onlyModules, moduleSelection.onlyModules ?? []),
+    compareChange("install.modules.onlyPhases", currentModules.onlyPhases, moduleSelection.onlyPhases ?? []),
+    compareChange("install.modules.skip", currentModules.skipModules, moduleSelection.skipModules ?? []),
+  ]);
+  const safeDefaultChanges = compactChanges([
+    compareChange("providerDefaults.provider", currentProvider?.providerId ?? null, profile.providerDefaults.provider),
+    compareChange("providerDefaults.region", currentProvider?.region ?? null, profile.providerDefaults.region),
+    compareChange("providerDefaults.planClass", currentProvider?.planName ?? null, profile.providerDefaults.planClass),
+    compareChange("providerDefaults.operatingSystem", current.ubuntuVersion ?? null, profile.providerDefaults.operatingSystem),
+    compareChange("providerDefaults.architecture", current.architecture ?? null, profile.providerDefaults.architecture),
+    compareChange("providerDefaults.sshUser", normalizeCommandUsername(current.username), profile.providerDefaults.sshUser),
+  ]);
+  const requiredSecretSlots = profile.serviceAccounts
+    .filter((account) => account.required)
+    .map((account) => account.secretSlot)
+    .sort();
+  const optionalSecretSlots = profile.serviceAccounts
+    .filter((account) => !account.required)
+    .map((account) => account.secretSlot)
+    .sort();
+
+  return {
+    schema: "acfs.team-profile-import-diff.v1",
+    schemaVersion: 1,
+    dryRun: true,
+    ok: findings.length === 0 && modulePlan.ok,
+    profile: {
+      profileId: profile.profileId,
+      displayName: profile.displayName,
+      schemaVersion: profile.schemaVersion,
+    },
+    findings,
+    safeDefaults: { changes: safeDefaultChanges },
+    installerCommand: {
+      command: commandAllowed
+        ? buildInstallCommand(profile.install.mode, commandRef, profile.providerDefaults.sshUser, moduleSelection)
+        : null,
+      changes: installerChanges,
+    },
+    dependencyClosure: modulePlan.dependencyClosure,
+    skips: {
+      requested: moduleSelection.skipModules ?? [],
+      allowed: modulePlan.ok && findings.every((finding) => finding.code !== "team_profile_no_deps_refused"),
+      warnings: modulePlan.warnings,
+    },
+    secretSlots: {
+      required: requiredSecretSlots,
+      optional: optionalSecretSlots,
+    },
+    incompatibilities,
+    refusals,
+  };
+}
+
+export function serializeTeamProfileImportDiffJson(diff: TeamProfileImportDiff): string {
+  return `${JSON.stringify(diff, null, 2)}\n`;
+}
+
+export function formatTeamProfileImportDiffMarkdown(diff: TeamProfileImportDiff): string {
+  const formatChanges = (changes: TeamProfileImportChange[]) =>
+    changes.length > 0
+      ? changes.map((change) => `- ${change.field}: ${JSON.stringify(change.current)} -> ${JSON.stringify(change.next)}`).join("\n")
+      : "- none";
+  const formatFindings = (findings: TeamProfileImportFinding[]) =>
+    findings.length > 0
+      ? findings.map((finding) => `- ${finding.code} at ${finding.path}: ${finding.message}`).join("\n")
+      : "- none";
+
+  return [
+    "# ACFS Team Profile Import Diff",
+    "",
+    `Dry run: ${diff.dryRun ? "yes" : "no"}`,
+    `Status: ${diff.ok ? "ready" : "blocked"}`,
+    diff.profile ? `Profile: ${diff.profile.displayName} (\`${diff.profile.profileId}\`)` : "Profile: unavailable",
+    "",
+    "## Safe Defaults",
+    "",
+    formatChanges(diff.safeDefaults.changes),
+    "",
+    "## Installer Command",
+    "",
+    diff.installerCommand.command
+      ? ["```bash", diff.installerCommand.command, "```"].join("\n")
+      : "Blocked until incompatibilities and refusals are resolved.",
+    "",
+    "Command changes:",
+    formatChanges(diff.installerCommand.changes),
+    "",
+    "## Dependency Closure",
+    "",
+    diff.dependencyClosure.length > 0
+      ? diff.dependencyClosure.map((moduleId) => `- ${moduleId}`).join("\n")
+      : "- none",
+    "",
+    "## Skips",
+    "",
+    diff.skips.requested.length > 0
+      ? diff.skips.requested.map((moduleId) => `- ${moduleId}`).join("\n")
+      : "- none",
+    "",
+    "## Secret Slots",
+    "",
+    "Required:",
+    diff.secretSlots.required.length > 0
+      ? diff.secretSlots.required.map((slot) => `- ${slot}`).join("\n")
+      : "- none",
+    "",
+    "Optional:",
+    diff.secretSlots.optional.length > 0
+      ? diff.secretSlots.optional.map((slot) => `- ${slot}`).join("\n")
+      : "- none",
+    "",
+    "## Incompatibilities",
+    "",
+    formatFindings(diff.incompatibilities),
+    "",
+    "## Refusals",
+    "",
+    formatFindings(diff.refusals),
     "",
   ].join("\n");
 }

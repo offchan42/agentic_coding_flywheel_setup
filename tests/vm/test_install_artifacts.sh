@@ -21,8 +21,8 @@ set -euo pipefail
 # Test configuration
 TESTS_PASSED=0
 TESTS_FAILED=0
-TARGET_USER="${1:-ubuntu}"
-TARGET_HOME="${2:-}"
+TARGET_USER="ubuntu"
+TARGET_HOME=""
 
 resolve_target_home() {
     local target_user="${1:-ubuntu}"
@@ -87,12 +87,12 @@ log() {
 }
 
 test_pass() {
-    ((TESTS_PASSED++))
+    TESTS_PASSED=$((TESTS_PASSED + 1))
     log "PASS: $1"
 }
 
 test_fail() {
-    ((TESTS_FAILED++))
+    TESTS_FAILED=$((TESTS_FAILED + 1))
     log "FAIL: $1"
     [[ -n "${2:-}" ]] && log "  Reason: $2"
 }
@@ -345,6 +345,133 @@ test_log_summary_cross_reference() {
 }
 
 # ============================================================
+# Test: Performance budget JSON exists
+# ============================================================
+test_performance_budget_json_exists() {
+    local budget_files
+    budget_files=$(find "$ACFS_LOGS_DIR" -name 'performance_budget_*.json' -type f 2>/dev/null | head -1)
+
+    if [[ -z "$budget_files" ]]; then
+        test_fail "performance_budget_json_exists" "No performance budget JSON file found in $ACFS_LOGS_DIR"
+        return 1
+    fi
+
+    test_pass "performance_budget_json_exists ($budget_files)"
+    echo "$budget_files"
+}
+
+# ============================================================
+# Test: Performance budget JSON is valid JSON
+# ============================================================
+test_performance_budget_json_valid() {
+    local budget_file="$1"
+
+    if ! command -v jq &>/dev/null; then
+        test_fail "performance_budget_json_valid" "jq not installed, cannot validate JSON"
+        return 1
+    fi
+
+    if ! jq . "$budget_file" >/dev/null 2>&1; then
+        test_fail "performance_budget_json_valid" "Invalid JSON in $budget_file"
+        return 1
+    fi
+
+    test_pass "performance_budget_json_valid"
+}
+
+# ============================================================
+# Test: Performance budget JSON has required fields
+# ============================================================
+test_performance_budget_json_schema() {
+    local budget_file="$1"
+
+    local required_fields=(
+        "schema_version"
+        "generated_at"
+        "threshold_profile"
+        "status"
+        "scenario"
+        "run"
+        "budgets"
+        "phases"
+        "artifacts"
+        "comparison"
+    )
+
+    for field in "${required_fields[@]}"; do
+        if ! jq -e ".$field" "$budget_file" >/dev/null 2>&1; then
+            test_fail "performance_budget_json_schema" "Missing required field: $field"
+            return 1
+        fi
+    done
+
+    local status
+    status=$(jq -r '.status' "$budget_file")
+    case "$status" in
+        pass|warn|fail|unknown) ;;
+        *)
+            test_fail "performance_budget_json_schema" "Invalid status value: $status"
+            return 1
+            ;;
+    esac
+
+    local threshold_profile
+    threshold_profile=$(jq -r '.threshold_profile' "$budget_file")
+    if [[ "$threshold_profile" != "installer_factory_v1" ]]; then
+        test_fail "performance_budget_json_schema" "Unexpected threshold profile: $threshold_profile"
+        return 1
+    fi
+
+    local budgets_type phases_type artifacts_type scenario_kind
+    budgets_type=$(jq -r '.budgets | type' "$budget_file")
+    phases_type=$(jq -r '.phases | type' "$budget_file")
+    artifacts_type=$(jq -r '.artifacts | type' "$budget_file")
+    scenario_kind=$(jq -r '.scenario.kind' "$budget_file")
+
+    if [[ "$budgets_type" != "array" || "$phases_type" != "array" || "$artifacts_type" != "array" ]]; then
+        test_fail "performance_budget_json_schema" "budgets/phases/artifacts must be arrays"
+        return 1
+    fi
+
+    if [[ "$scenario_kind" != "installer" ]]; then
+        test_fail "performance_budget_json_schema" "Unexpected scenario.kind: $scenario_kind"
+        return 1
+    fi
+
+    if ! jq -e '.budgets[] | select(.name == "total_duration_seconds" and .unit == "seconds" and (.status == "pass" or .status == "warn" or .status == "fail" or .status == "unknown"))' "$budget_file" >/dev/null 2>&1; then
+        test_fail "performance_budget_json_schema" "Missing total_duration_seconds budget entry"
+        return 1
+    fi
+
+    test_pass "performance_budget_json_schema (status=$status)"
+}
+
+# ============================================================
+# Test: Performance budget references summary without leaking paths
+# ============================================================
+test_performance_budget_summary_reference() {
+    local budget_file="$1"
+    local summary_file="$2"
+    local summary_base
+    summary_base="$(basename "$summary_file")"
+
+    local referenced_summary
+    referenced_summary=$(jq -r '.artifacts[] | select(.kind == "source_summary") | .path' "$budget_file" | head -1)
+
+    if [[ "$referenced_summary" != "$summary_base" ]]; then
+        test_fail "performance_budget_summary_reference" "Expected source summary $summary_base, got ${referenced_summary:-missing}"
+        return 1
+    fi
+
+    if grep -Fq -- "$TARGET_HOME" "$budget_file" 2>/dev/null; then
+        test_fail "performance_budget_summary_reference" "Performance budget contains target home path"
+        return 1
+    fi
+
+    test_pass "performance_budget_summary_reference ($referenced_summary)"
+}
+
+# ============================================================
 # Main
 # ============================================================
 main() {
@@ -367,7 +494,8 @@ main() {
     # Run log file tests
     log "--- Log File Tests ---"
     local log_file
-    log_file=$(test_log_file_exists) || true
+    test_log_file_exists || true
+    log_file=$(find "$ACFS_LOGS_DIR" -name 'install-*.log' -type f 2>/dev/null | head -1)
     if [[ -n "$log_file" && -f "$log_file" ]]; then
         test_log_file_content "$log_file"
     fi
@@ -375,13 +503,27 @@ main() {
     log ""
     log "--- Summary JSON Tests ---"
     local summary_file
-    summary_file=$(test_summary_json_exists) || true
+    test_summary_json_exists || true
+    summary_file=$(find "$ACFS_LOGS_DIR" -name 'install_summary_*.json' -type f 2>/dev/null | head -1)
     if [[ -n "$summary_file" && -f "$summary_file" ]]; then
         test_summary_json_valid "$summary_file"
         test_summary_json_schema "$summary_file"
         test_summary_json_environment "$summary_file"
         test_summary_json_phases "$summary_file"
         test_log_summary_cross_reference "$summary_file"
+    fi
+
+    log ""
+    log "--- Performance Budget JSON Tests ---"
+    local budget_file
+    test_performance_budget_json_exists || true
+    budget_file=$(find "$ACFS_LOGS_DIR" -name 'performance_budget_*.json' -type f 2>/dev/null | head -1)
+    if [[ -n "$budget_file" && -f "$budget_file" ]]; then
+        test_performance_budget_json_valid "$budget_file"
+        test_performance_budget_json_schema "$budget_file"
+        if [[ -n "${summary_file:-}" && -f "$summary_file" ]]; then
+            test_performance_budget_summary_reference "$budget_file" "$summary_file"
+        fi
     fi
 
     # Summary

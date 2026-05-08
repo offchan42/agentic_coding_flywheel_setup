@@ -904,6 +904,112 @@ acfs_log_close() {
 # Install summary JSON (bd-31ps.3.2)
 # ============================================================
 
+# Emit a local performance budget artifact derived from an install summary.
+# Usage: acfs_performance_budget_emit <summary_file>
+# Output: ~/.acfs/logs/performance_budget_<timestamp>.json
+acfs_performance_budget_emit() {
+    local summary_file="$1"
+
+    command -v jq &>/dev/null || return 0
+    [[ -f "$summary_file" ]] || return 0
+
+    local summary_dir summary_base budget_suffix budget_file generated_at
+    summary_dir="$(dirname "$summary_file")"
+    summary_base="$(basename "$summary_file")"
+    budget_suffix="${summary_base#install_summary_}"
+    if [[ "$budget_suffix" == "$summary_base" ]]; then
+        budget_suffix="$(date +%Y%m%d_%H%M%S).json"
+    fi
+    budget_file="${summary_dir}/performance_budget_${budget_suffix}"
+    generated_at="$(date -Iseconds)"
+
+    jq -n \
+        --slurpfile summary "$summary_file" \
+        --arg generated_at "$generated_at" \
+        --arg source_summary "$summary_base" '
+        ($summary[0] // {}) as $s |
+        def budget_status($actual; $warn; $fail):
+            if ($actual == null) then "unknown"
+            elif ($actual >= $fail) then "fail"
+            elif ($actual >= $warn) then "warn"
+            else "pass"
+            end;
+        def aggregate_status($items):
+            if any($items[]?; .status == "fail") then "fail"
+            elif any($items[]?; .status == "warn") then "warn"
+            elif any($items[]?; .status == "unknown") then "unknown"
+            else "pass"
+            end;
+        ($s.total_seconds // null) as $total_seconds |
+        2700 as $total_warn |
+        4500 as $total_fail |
+        900 as $phase_warn |
+        1800 as $phase_fail |
+        [
+            {
+                name: "total_duration_seconds",
+                actual: $total_seconds,
+                warn: $total_warn,
+                fail: $total_fail,
+                unit: "seconds",
+                status: budget_status($total_seconds; $total_warn; $total_fail)
+            }
+        ] as $budgets |
+        (($s.phases // []) | map({
+            id: (.id // "unknown"),
+            duration_seconds: (.duration_seconds // null),
+            warn_seconds: $phase_warn,
+            fail_seconds: $phase_fail,
+            status: budget_status((.duration_seconds // null); $phase_warn; $phase_fail)
+        })) as $phases |
+        {
+            schema_version: 1,
+            generated_at: $generated_at,
+            threshold_profile: "installer_factory_v1",
+            status: aggregate_status($budgets + $phases),
+            scenario: {
+                kind: "installer",
+                backend: "local",
+                ubuntu_final: ($s.environment.ubuntu_version // "unknown"),
+                mode: ($s.environment.mode // "unknown"),
+                host_class: "unknown"
+            },
+            run: {
+                run_id: ($source_summary | sub("^install_summary_"; "") | sub("\\.json$"; "")),
+                acfs_version: ($s.environment.acfs_version // "unknown"),
+                completed_at: ($s.timestamp // null),
+                duration_seconds: $total_seconds,
+                install_status: ($s.status // "unknown")
+            },
+            budgets: $budgets,
+            phases: $phases,
+            probes: [],
+            resources: [],
+            artifacts: [
+                {
+                    path: $source_summary,
+                    kind: "source_summary",
+                    redacted: true
+                }
+            ],
+            comparison: {
+                baseline_source: "none",
+                delta_pct: null,
+                status: "unknown"
+            },
+            recommendations: []
+        }' > "$budget_file" 2>/dev/null || return 0
+
+    ACFS_PERFORMANCE_BUDGET_FILE="$budget_file"
+    export ACFS_PERFORMANCE_BUDGET_FILE
+
+    if [[ -n "${TARGET_USER:-}" ]] && [[ "$(id -u)" -eq 0 ]]; then
+        chown "${TARGET_USER}:${TARGET_USER}" "$budget_file" 2>/dev/null || true
+    fi
+
+    log_detail "Performance budget: $budget_file"
+}
+
 # Emit a JSON summary of the install run for downstream tooling.
 # Usage: acfs_summary_emit <status> [total_seconds]
 #   status: "success" or "failure"
@@ -1005,6 +1111,8 @@ acfs_summary_emit() {
     if [[ -n "${TARGET_USER:-}" ]] && [[ "$(id -u)" -eq 0 ]]; then
         chown "${TARGET_USER}:${TARGET_USER}" "$ACFS_SUMMARY_FILE" 2>/dev/null || true
     fi
+
+    acfs_performance_budget_emit "$ACFS_SUMMARY_FILE" 2>/dev/null || true
 
     log_detail "Summary: $ACFS_SUMMARY_FILE"
 }

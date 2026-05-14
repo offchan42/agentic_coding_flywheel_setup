@@ -557,6 +557,55 @@ describe("buildTeamProfileImportDiff", () => {
     expect(json).not.toContain("<credential>");
   });
 
+  test("rejects invalid import refs before building a command preview", () => {
+    const malformedRef = "feature/test;touch /tmp/acfs";
+    const profile = {
+      ...sampleProfile(),
+      install: {
+        ...sampleProfile().install,
+        ref: {
+          ...sampleProfile().install.ref,
+          value: malformedRef,
+        },
+      },
+    };
+    const diff = buildTeamProfileImportDiff(profile);
+    const json = serializeTeamProfileImportDiffJson(diff);
+
+    expect(diff.ok).toBe(false);
+    expect(diff.profile).toBeNull();
+    expect(diff.incompatibilities).toContainEqual(expect.objectContaining({
+      code: "team_profile_schema_unsupported",
+      path: "install.ref.value",
+    }));
+    expect(diff.installerCommand.command).toBeNull();
+    expect(json).not.toContain(malformedRef);
+  });
+
+  test("rejects malformed credential-slot placeholders before exposing import details", () => {
+    const rawCredential = ["Bea", "rer should-not-appear"].join("");
+    const profile = {
+      ...sampleProfile(),
+      serviceAccounts: [
+        {
+          ...sampleProfile().serviceAccounts[0],
+          secretSlot: rawCredential,
+        },
+      ],
+    };
+    const diff = buildTeamProfileImportDiff(profile);
+    const json = serializeTeamProfileImportDiffJson(diff);
+
+    expect(diff.ok).toBe(false);
+    expect(diff.profile).toBeNull();
+    expect(diff.refusals).toContainEqual(expect.objectContaining({
+      code: "team_profile_secret_material_refused",
+      path: "serviceAccounts.0.secretSlot",
+    }));
+    expect(diff.installerCommand.command).toBeNull();
+    expect(json).not.toContain(rawCredential);
+  });
+
   test("shows provider mismatches as safe default changes", () => {
     const diff = buildTeamProfileImportDiff(sampleProfile(), {
       providerSelection: {
@@ -605,6 +654,24 @@ describe("buildTeamProfileImportDiff", () => {
     expect(diff.incompatibilities.map((finding) => finding.code)).toContain("team_profile_unknown_module");
     expect(diff.installerCommand.command).toBeNull();
     expect(markdown).toContain("Blocked until incompatibilities and refusals are resolved.");
+  });
+
+  test("blocks unknown module selection profiles instead of silently falling back to full", () => {
+    const profile = {
+      ...sampleProfile(),
+      install: {
+        ...sampleProfile().install,
+        profile: "not-a-real-profile",
+      },
+    };
+    const diff = buildTeamProfileImportDiff(profile);
+
+    expect(diff.ok).toBe(false);
+    expect(diff.incompatibilities).toContainEqual(expect.objectContaining({
+      code: "team_profile_unknown_module",
+      path: "install.profile",
+    }));
+    expect(diff.installerCommand.command).toBeNull();
   });
 });
 

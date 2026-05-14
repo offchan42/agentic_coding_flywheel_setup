@@ -495,6 +495,7 @@ offline_pack_load_manifest_modules() {
 offline_pack_select_modules() {
     local module_id=""
     local tool=""
+    local url=""
 
     if (( ${#OFFLINE_PACK_MODULE_ARGS[@]} == 0 )); then
         OFFLINE_PACK_SELECTED_MODULES=("${OFFLINE_PACK_VERIFIED_MODULES[@]}")
@@ -514,9 +515,18 @@ offline_pack_select_modules() {
             continue
         fi
 
-        if [[ -z "${OFFLINE_PACK_INSTALLER_URL[$tool]:-}" || -z "${OFFLINE_PACK_INSTALLER_SHA[$tool]:-}" ]]; then
+        url="${OFFLINE_PACK_INSTALLER_URL[$tool]:-}"
+        if [[ -z "$url" || -z "${OFFLINE_PACK_INSTALLER_SHA[$tool]:-}" ]]; then
             offline_pack_add_error "pack_checksums_mismatch: installer key $tool missing from checksums.yaml"
+            continue
         fi
+
+        case "$url" in
+            https://*) ;;
+            *)
+                offline_pack_add_error "pack_non_https_source: installer key $tool must use an HTTPS source URL"
+                ;;
+        esac
     done
 }
 
@@ -587,17 +597,11 @@ offline_pack_prepare_layout() {
 offline_pack_fetch_url() {
     local url="$1"
     local destination="$2"
-    local source_path=""
     local curl_args=()
 
     mkdir -p "${destination%/*}"
 
     case "$url" in
-        file:///*)
-            source_path="${url#file://}"
-            [[ -f "$source_path" ]] || return 1
-            cp "$source_path" "$destination"
-            ;;
         https://*)
             command -v curl >/dev/null 2>&1 || return 1
             curl_args=(--proto '=https' --proto-redir '=https' -fsSL --connect-timeout 10 --max-time "$OFFLINE_PACK_TIMEOUT_SECONDS" -o "$destination" "$url")

@@ -333,8 +333,14 @@ const TEAM_PROFILE_REQUIRED_PATHS = [
   "providerDefaults.architecture",
   "providerDefaults.sshUser",
   "install.mode",
+  "install.profile",
   "install.ref",
+  "install.ref.type",
+  "install.ref.value",
+  "install.ref.pinOnExport",
   "install.modules",
+  "install.modules.noDeps",
+  "serviceAccounts",
   "redaction.allowSecretValues",
   "redaction.secretSlotsRequired",
 ];
@@ -876,6 +882,18 @@ function isProfileId(value: unknown): value is NonNullable<ModuleSelectionInput[
   return typeof value === "string" && TEAM_PROFILE_PROFILE_IDS.has(value);
 }
 
+function isTeamProfileRefType(value: unknown): value is TeamProfileRefType {
+  return value === "branch" || value === "tag" || value === "commit";
+}
+
+function isTeamProfileArchitecture(value: unknown): value is TeamProfileArchitecture {
+  return value === "x86_64" || value === "aarch64";
+}
+
+function isTeamSecretSlot(value: unknown): value is TeamProfileServiceAccount["secretSlot"] {
+  return typeof value === "string" && /^secret:\/\/acfs\/team\/[a-z0-9._-]+$/.test(value);
+}
+
 function importedModuleSelection(profile: TeamProfile): ModuleSelectionInput {
   const install = profile.install as Omit<TeamProfile["install"], "modules"> & {
     modules: Partial<Omit<TeamProfile["install"]["modules"], "noDeps">> & { noDeps?: boolean };
@@ -1012,7 +1030,28 @@ function validateTeamProfileForImport(
       "install.mode must be either vibe or safe.",
     ));
   }
+  if (install.profile !== undefined && !isProfileId(install.profile)) {
+    findings.push(importFinding(
+      "team_profile_unknown_module",
+      "install.profile",
+      "Profile references an unknown module selection profile.",
+    ));
+  }
   const ref = isRecord(install.ref) ? install.ref : {};
+  if (ref.type !== undefined && !isTeamProfileRefType(ref.type)) {
+    findings.push(importFinding(
+      "team_profile_schema_unsupported",
+      "install.ref.type",
+      "install.ref.type must be branch, tag, or commit.",
+    ));
+  }
+  if (typeof ref.value !== "string" || normalizeGitRef(ref.value) !== ref.value) {
+    findings.push(importFinding(
+      "team_profile_schema_unsupported",
+      "install.ref.value",
+      "install.ref.value must be a valid ACFS git ref.",
+    ));
+  }
   if (ref.pinOnExport !== true) {
     findings.push(importFinding(
       "team_profile_ref_policy_mismatch",
@@ -1021,6 +1060,20 @@ function validateTeamProfileForImport(
     ));
   }
   const modules = isRecord(install.modules) ? install.modules : {};
+  if (install.modules !== undefined && !isRecord(install.modules)) {
+    findings.push(importFinding(
+      "team_profile_missing_required_field",
+      "install.modules",
+      "install.modules must be an object.",
+    ));
+  }
+  if (modules.noDeps !== undefined && typeof modules.noDeps !== "boolean") {
+    findings.push(importFinding(
+      "team_profile_schema_unsupported",
+      "install.modules.noDeps",
+      "install.modules.noDeps must be a boolean.",
+    ));
+  }
   if (modules.noDeps === true) {
     findings.push(importFinding(
       "team_profile_no_deps_refused",
@@ -1042,6 +1095,51 @@ function validateTeamProfileForImport(
       ? "team_profile_unknown_phase"
       : "team_profile_unknown_module";
     findings.push(importFinding(code, "install.modules", error));
+  }
+
+  const providerDefaults = isRecord(input.providerDefaults) ? input.providerDefaults : {};
+  if (providerDefaults.architecture !== undefined && !isTeamProfileArchitecture(providerDefaults.architecture)) {
+    findings.push(importFinding(
+      "team_profile_arch_unsupported",
+      "providerDefaults.architecture",
+      "Profile defaults must use a supported architecture.",
+    ));
+  }
+  if (providerDefaults.sshUser !== undefined) {
+    if (typeof providerDefaults.sshUser !== "string" || normalizeSSHUsername(providerDefaults.sshUser) !== providerDefaults.sshUser) {
+      findings.push(importFinding(
+        "team_profile_schema_unsupported",
+        "providerDefaults.sshUser",
+        "Profile defaults must use a valid SSH username.",
+      ));
+    }
+  }
+
+  if (input.serviceAccounts !== undefined && !Array.isArray(input.serviceAccounts)) {
+    findings.push(importFinding(
+      "team_profile_missing_required_field",
+      "serviceAccounts",
+      "serviceAccounts must be an array.",
+    ));
+  }
+  if (Array.isArray(input.serviceAccounts)) {
+    input.serviceAccounts.forEach((account, index) => {
+      if (!isRecord(account)) {
+        findings.push(importFinding(
+          "team_profile_missing_required_field",
+          `serviceAccounts.${index}`,
+          "serviceAccounts entries must be objects.",
+        ));
+        return;
+      }
+      if (!isTeamSecretSlot(account.secretSlot)) {
+        findings.push(importFinding(
+          "team_profile_secret_material_refused",
+          `serviceAccounts.${index}.secretSlot`,
+          "Secret slots must be secret://acfs/team/<slot-id> placeholders.",
+        ));
+      }
+    });
   }
 
   return findings;

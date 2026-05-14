@@ -7708,7 +7708,8 @@ Tip: use --print to see upstream install scripts that will be fetched."
     local target_ssh_command="ssh -i ~/.ssh/acfs_ed25519 ${TARGET_USER}@YOUR_SERVER_IP"
     local target_ssh_copy_command="ssh-copy-id -i ~/.ssh/acfs_ed25519.pub ${TARGET_USER}@YOUR_SERVER_IP"
     local target_home_for_summary="${TARGET_HOME:-/home/$TARGET_USER}"
-    local target_ssh_repair_command="cat ~/.ssh/acfs_ed25519.pub | ssh root@YOUR_SERVER_IP \"install -d -m 700 -o $TARGET_USER -g $TARGET_USER $target_home_for_summary/.ssh && cat >> $target_home_for_summary/.ssh/authorized_keys && chown $TARGET_USER:$TARGET_USER $target_home_for_summary/.ssh/authorized_keys && chmod 600 $target_home_for_summary/.ssh/authorized_keys\""
+    local target_authorized_keys_for_summary="$target_home_for_summary/.ssh/authorized_keys"
+    local target_ssh_repair_command="cat ~/.ssh/acfs_ed25519.pub | ssh root@YOUR_SERVER_IP \"read -r acfs_pubkey && test ! -L $target_home_for_summary/.ssh && install -d -m 700 -o $TARGET_USER -g $TARGET_USER $target_home_for_summary/.ssh && test ! -L $target_authorized_keys_for_summary && touch $target_authorized_keys_for_summary && if ! grep -qxF \"\\\$acfs_pubkey\" $target_authorized_keys_for_summary; then printf '%s\\n' \"\\\$acfs_pubkey\" >> $target_authorized_keys_for_summary; fi && chown $TARGET_USER:$TARGET_USER $target_authorized_keys_for_summary && chmod 600 $target_authorized_keys_for_summary\""
 
     local ssh_key_warning_section=""
     if [[ "${ACFS_SSH_KEY_WARNING:-false}" == "true" ]]; then

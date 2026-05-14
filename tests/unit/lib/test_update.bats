@@ -12685,6 +12685,16 @@ EOF
     run grep -F 'cat ~/.ssh/acfs_ed25519.pub | ssh root@YOUR_SERVER_IP' "$PROJECT_ROOT/install.sh"
     assert_success
 
+    run grep -F 'if ! grep -qxF' "$PROJECT_ROOT/install.sh"
+    assert_success
+    [[ "$output" == *'acfs_pubkey'* ]]
+
+    run grep -F 'test ! -L $target_home_for_summary/.ssh' "$PROJECT_ROOT/install.sh"
+    assert_success
+
+    run grep -F '&& cat >> $target_home_for_summary/.ssh/authorized_keys' "$PROJECT_ROOT/install.sh"
+    assert_failure
+
     run grep -F 'ssh_key_warning_section' "$PROJECT_ROOT/install.sh"
     assert_success
 }

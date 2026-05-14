@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  buildRootKeyRepairCommand,
   buildCommands,
   buildHandoffRunbook,
   buildInstallCommand,
@@ -13,6 +14,27 @@ import {
   serializeHandoffRunbookJson,
   serializeTeamProfileJson,
 } from "./commandBuilder";
+
+describe("buildRootKeyRepairCommand", () => {
+  test("copies the ACFS public key through root without appending duplicates", () => {
+    const command = buildRootKeyRepairCommand("dev-user", "203.0.113.42");
+
+    expect(command).toContain("cat ~/.ssh/acfs_ed25519.pub | ssh root@203.0.113.42");
+    expect(command).toContain("read -r acfs_pubkey");
+    expect(command).toContain("test ! -L /home/dev-user/.ssh");
+    expect(command).toContain('if ! grep -qxF "\\$acfs_pubkey" /home/dev-user/.ssh/authorized_keys; then');
+    expect(command).toContain('printf \'%s\\n\' "\\$acfs_pubkey" >> /home/dev-user/.ssh/authorized_keys');
+    expect(command).not.toContain("cat >> /home/dev-user/.ssh/authorized_keys");
+  });
+
+  test("falls back to ubuntu for usernames the installer would reject", () => {
+    const command = buildRootKeyRepairCommand("Bad User", "2001:db8::42");
+
+    expect(command).toContain("ssh root@[2001:db8::42]");
+    expect(command).toContain("/home/ubuntu/.ssh/authorized_keys");
+    expect(command).not.toContain("Bad User");
+  });
+});
 
 describe("buildInstallCommand", () => {
   test("omits TARGET_USER for the default ubuntu user", () => {

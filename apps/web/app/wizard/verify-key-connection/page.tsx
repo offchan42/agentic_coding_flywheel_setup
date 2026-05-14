@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { CommandCard } from "@/components/command-card";
 import { AlertCard, OutputPreview } from "@/components/alert-card";
-import { formatSshTarget } from "@/lib/commandBuilder";
+import { buildRootKeyRepairCommand, formatSshTarget } from "@/lib/commandBuilder";
 import { markStepComplete } from "@/lib/wizardSteps";
 import { useWizardAnalytics } from "@/lib/hooks/useWizardAnalytics";
 import { useSSHUsername, useVPSIP } from "@/lib/userPreferences";
@@ -61,18 +61,10 @@ export default function VerifyKeyConnectionPage() {
 
   const effectiveUsername = sshUsername.trim() || "ubuntu";
   const userTarget = formatSshTarget(effectiveUsername, vpsIP);
-  const rootTarget = formatSshTarget("root", vpsIP);
   const userPrompt = `${effectiveUsername}@`;
   const sshKeyCommand = `ssh -i ~/.ssh/acfs_ed25519 ${userTarget}`;
   const sshKeyCommandWindows = `ssh -i $HOME\\.ssh\\acfs_ed25519 ${userTarget}`;
-  const userHome = effectiveUsername === "root" ? "/root" : `/home/${effectiveUsername}`;
-  const rootKeyRepairCommand = [
-    `cat ~/.ssh/acfs_ed25519.pub | ssh ${rootTarget}`,
-    `"install -d -m 700 -o ${effectiveUsername} -g ${effectiveUsername} ${userHome}/.ssh`,
-    `&& cat >> ${userHome}/.ssh/authorized_keys`,
-    `&& chown ${effectiveUsername}:${effectiveUsername} ${userHome}/.ssh/authorized_keys`,
-    `&& chmod 600 ${userHome}/.ssh/authorized_keys"`,
-  ].join(" ");
+  const rootKeyRepairCommand = buildRootKeyRepairCommand(effectiveUsername, vpsIP);
 
   return (
     <div className="space-y-8">

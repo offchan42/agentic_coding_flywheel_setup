@@ -158,7 +158,7 @@ ssh -i ~/.ssh/acfs_ed25519 ubuntu@YOUR_IP_ADDRESS
 If Contabo only allowed password login and the installer prints an SSH-key follow-up warning, run this from your local machine. It asks for the Contabo root password once, then installs your ACFS public key for `ubuntu`:
 
 ```bash
-cat ~/.ssh/acfs_ed25519.pub | ssh root@YOUR_IP_ADDRESS "install -d -m 700 -o ubuntu -g ubuntu /home/ubuntu/.ssh && cat >> /home/ubuntu/.ssh/authorized_keys && chown ubuntu:ubuntu /home/ubuntu/.ssh/authorized_keys && chmod 600 /home/ubuntu/.ssh/authorized_keys"
+cat ~/.ssh/acfs_ed25519.pub | ssh root@YOUR_IP_ADDRESS "read -r acfs_pubkey && test ! -L /home/ubuntu/.ssh && install -d -m 700 -o ubuntu -g ubuntu /home/ubuntu/.ssh && test ! -L /home/ubuntu/.ssh/authorized_keys && touch /home/ubuntu/.ssh/authorized_keys && if ! grep -qxF \"\$acfs_pubkey\" /home/ubuntu/.ssh/authorized_keys; then printf '%s\n' \"\$acfs_pubkey\" >> /home/ubuntu/.ssh/authorized_keys; fi && chown ubuntu:ubuntu /home/ubuntu/.ssh/authorized_keys && chmod 600 /home/ubuntu/.ssh/authorized_keys"
 ```
 
 ---

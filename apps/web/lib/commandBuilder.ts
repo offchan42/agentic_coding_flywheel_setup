@@ -383,6 +383,25 @@ export function formatSshTarget(username: string, host: string): string {
   return `${username}@${formatSshHost(host)}`;
 }
 
+export function buildRootKeyRepairCommand(username: string, host: string): string {
+  const safeUsername = normalizeSSHUsername(username) ?? "ubuntu";
+  const rootTarget = formatSshTarget("root", host);
+  const targetHome = safeUsername === "root" ? "/root" : `/home/${safeUsername}`;
+  const authorizedKeys = `${targetHome}/.ssh/authorized_keys`;
+
+  return [
+    `cat ~/.ssh/acfs_ed25519.pub | ssh ${rootTarget}`,
+    `"read -r acfs_pubkey`,
+    `&& test ! -L ${targetHome}/.ssh`,
+    `&& install -d -m 700 -o ${safeUsername} -g ${safeUsername} ${targetHome}/.ssh`,
+    `&& test ! -L ${authorizedKeys}`,
+    `&& touch ${authorizedKeys}`,
+    `&& if ! grep -qxF "\\$acfs_pubkey" ${authorizedKeys}; then printf '%s\\n' "\\$acfs_pubkey" >> ${authorizedKeys}; fi`,
+    `&& chown ${safeUsername}:${safeUsername} ${authorizedKeys}`,
+    `&& chmod 600 ${authorizedKeys}"`,
+  ].join(" ");
+}
+
 function normalizeInstallUsername(username: string | null | undefined): string | null {
   const normalized = normalizeSSHUsername(username);
   if (!normalized || normalized === "ubuntu") return null;

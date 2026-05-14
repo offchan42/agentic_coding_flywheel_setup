@@ -1169,6 +1169,7 @@ print_current_checksums() {
         mapfile -t installer_names < <(printf '%s\n' "${installer_names[@]}" | acfs_security_sort_lines)
     fi
 
+    local wrote_entry=false
     for name in "${installer_names[@]}"; do
         local url="${KNOWN_INSTALLERS[$name]}"
         local sha256
@@ -1188,11 +1189,14 @@ print_current_checksums() {
         echo "done" >&2
 
         {
+            if [[ "$wrote_entry" == "true" ]]; then
+                echo ""
+            fi
             echo "  $name:"
             echo "    url: \"$url\""
             echo "    sha256: \"$sha256\""
-            echo ""
         } >>"$tmp_output"
+        wrote_entry=true
     done
 
     if [[ "$had_failure" == "true" ]]; then

@@ -105,7 +105,7 @@ DB_PASSWORD=fake-matrix-password-002
         return 1
     fi
 
-    for category in api_key github_token github_pat vault_token slack_token bearer_token jwt credential_url generic_secret; do
+    for category in api_key github_token github_pat vault_token slack_token bearer_token jwt credential_url password; do
         assert_category_present "$json_output" "$category" || return 1
         grep -Fq "$category" "$human_output" || return 1
     done
@@ -210,6 +210,44 @@ test_json_secret_value_detection_ignores_unrelated_placeholder_words() {
     pass "json_secret_value_detection_ignores_unrelated_placeholder_words"
 }
 
+test_detects_later_secret_pairs_on_same_line() {
+    local fixture="$ARTIFACT_DIR/later-pairs/config.env"
+    local output="$ARTIFACT_DIR/later-pairs.json"
+    local json_secret="real-json-secret-12345"
+    local shell_secret="real-shell-secret-12345"
+
+    write_fixture "$fixture" "{\"note\":\"example fixture text\",\"api_key\":\"$json_secret\"}
+export PATH=/usr/local/bin API_TOKEN=$shell_secret"
+
+    if bash "$CREDENTIAL_PREFLIGHT_SH" --json --file "$fixture" > "$output"; then
+        return 1
+    fi
+
+    jq -e '.summary.findings >= 2' "$output" >/dev/null || return 1
+    assert_category_present "$output" "generic_secret" || return 1
+    assert_no_raw_secret "$output" "$json_secret" || return 1
+    assert_no_raw_secret "$output" "$shell_secret" || return 1
+
+    pass "detects_later_secret_pairs_on_same_line"
+}
+
+test_password_keys_keep_password_category_after_placeholder_checks() {
+    local fixture="$ARTIFACT_DIR/password-category/.env"
+    local output="$ARTIFACT_DIR/password-category.json"
+    local secret="real-password-value-12345"
+
+    write_fixture "$fixture" "DB_PASSWORD=$secret"
+
+    if bash "$CREDENTIAL_PREFLIGHT_SH" --json --file "$fixture" > "$output"; then
+        return 1
+    fi
+
+    assert_category_present "$output" "password" || return 1
+    assert_no_raw_secret "$output" "$secret" || return 1
+
+    pass "password_keys_keep_password_category_after_placeholder_checks"
+}
+
 test_binary_and_unreadable_files_are_skipped() {
     local binary_file="$ARTIFACT_DIR/skipped/binary.bin"
     local unreadable_file="$ARTIFACT_DIR/skipped/unreadable.env"
@@ -290,6 +328,8 @@ main() {
     run_test test_benign_examples_pass
     run_test test_detects_hex_encoded_secret_values_under_secret_keys
     run_test test_json_secret_value_detection_ignores_unrelated_placeholder_words
+    run_test test_detects_later_secret_pairs_on_same_line
+    run_test test_password_keys_keep_password_category_after_placeholder_checks
     run_test test_binary_and_unreadable_files_are_skipped
     run_test test_excluded_paths_are_opted_out
     run_test test_default_scan_covers_shell_history_and_acfs_state

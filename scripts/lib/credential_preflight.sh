@@ -368,6 +368,9 @@ credential_preflight_scan_line() {
     local line="$5"
     local lower=""
     local specific=false
+    local rest=""
+    local match=""
+    local key=""
     local value=""
 
     lower="${line,,}"
@@ -415,27 +418,34 @@ credential_preflight_scan_line() {
 
     [[ "$specific" == true ]] && return 0
 
-    if [[ "$lower" =~ \"([a-z][a-z0-9_-]*)\"[[:space:]]*:[[:space:]]*\"([^\"]{4,})\" ]]; then
+    rest="$lower"
+    while [[ "$rest" =~ \"([a-z][a-z0-9_-]*)\"[[:space:]]*:[[:space:]]*\"([^\"]{4,})\" ]]; do
+        match="${BASH_REMATCH[0]}"
+        key="${BASH_REMATCH[1]:-}"
         value="${BASH_REMATCH[2]:-}"
-        if credential_preflight_key_is_secret_like "${BASH_REMATCH[1]:-}" && ! credential_preflight_value_is_placeholder "$value"; then
-            if [[ "${BASH_REMATCH[1]:-}" == *"password"* || "${BASH_REMATCH[1]:-}" == *"passwd"* ]]; then
+        if credential_preflight_key_is_secret_like "$key" && ! credential_preflight_value_is_placeholder "$value"; then
+            if [[ "$key" == *"password"* || "$key" == *"passwd"* ]]; then
                 credential_preflight_add_finding "$root" "$path" "$source" "$line_number" "password" "secret-like JSON key"
             else
                 credential_preflight_add_finding "$root" "$path" "$source" "$line_number" "generic_secret" "secret-like JSON key"
             fi
-            return 0
         fi
-    fi
+        rest="${rest#*"$match"}"
+    done
 
-    if [[ "$lower" =~ (^|[^a-z0-9_-])([a-z][a-z0-9_-]*)[[:space:]]*[:=][[:space:]]*[\"\']?([^\"\'\<\>\ 	]{4,}) ]]; then
+    rest="$lower"
+    while [[ "$rest" =~ (^|[^a-z0-9_-])([a-z][a-z0-9_-]*)[[:space:]]*[:=][[:space:]]*[\"\']?([^\"\'\<\>\ 	]{4,}) ]]; do
+        match="${BASH_REMATCH[0]}"
+        key="${BASH_REMATCH[2]:-}"
         value="${BASH_REMATCH[3]:-}"
-        if credential_preflight_key_is_secret_like "${BASH_REMATCH[2]:-}" && ! credential_preflight_value_is_placeholder "$value"; then
-            case "${BASH_REMATCH[2]:-}" in
+        if credential_preflight_key_is_secret_like "$key" && ! credential_preflight_value_is_placeholder "$value"; then
+            case "$key" in
                 *password*|*passwd*) credential_preflight_add_finding "$root" "$path" "$source" "$line_number" "password" "secret-like assignment key" ;;
                 *) credential_preflight_add_finding "$root" "$path" "$source" "$line_number" "generic_secret" "secret-like assignment key" ;;
             esac
         fi
-    fi
+        rest="${rest#*"$match"}"
+    done
 }
 
 credential_preflight_file_is_binary() {

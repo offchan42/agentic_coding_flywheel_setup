@@ -196,7 +196,7 @@ export const STEP_HELP: Partial<Record<number, StepHelp>> = {
       {
         symptom: "I can't connect as the SSH user",
         solution:
-          "Use the key-based SSH command from this step, such as: ssh -i ~/.ssh/acfs_ed25519 ubuntu@YOUR_IP. If that fails with 'permission denied', connect as root and check that the installer completed successfully.",
+          "Use the key-based SSH command shown on this step. The default is: ssh -i ~/.ssh/acfs_ed25519 ubuntu@YOUR_IP; replace ubuntu if you chose a different target user. If that fails with 'permission denied', connect as root and check that the installer completed successfully.",
       },
     ],
     tips: [
@@ -209,7 +209,7 @@ export const STEP_HELP: Partial<Record<number, StepHelp>> = {
       {
         symptom: "acfs doctor shows failures",
         solution:
-          "Re-run the installer: it's safe to run multiple times. Make sure you're connected as the ubuntu user, then run: source ~/.zshrc && acfs doctor",
+          "Re-run the installer: it's safe to run multiple times. Make sure you're connected as your configured SSH user (ubuntu by default), then run: source ~/.zshrc && acfs doctor",
       },
       {
         symptom: "Command not found: acfs",

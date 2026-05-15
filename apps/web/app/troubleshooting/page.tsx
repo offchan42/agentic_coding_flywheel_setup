@@ -130,7 +130,7 @@ const ISSUES: Omit<TroubleshootingIssue, "searchable">[] = [
     ],
     causes: [
       "SSH key not added to VPS",
-      "Wrong username (should be 'ubuntu' not 'root')",
+      "Using root for a post-install key-based login instead of the configured SSH user",
       "SSH key file has wrong permissions",
       "Using wrong SSH key file",
     ],
@@ -138,8 +138,9 @@ const ISSUES: Omit<TroubleshootingIssue, "searchable">[] = [
       {
         title: "Verify you're using the right username",
         steps: [
-          "For Ubuntu VPS, the username is 'ubuntu', not 'root'",
-          "Update your SSH command accordingly",
+          "For post-install key logins, use ubuntu by default, not root",
+          "If you configured a different SSH user, use that username instead",
+          "For the first password login before installing, follow the wizard's root SSH step instead",
         ],
         command: "ssh -i ~/.ssh/acfs_ed25519 ubuntu@YOUR_VPS_IP",
       },
@@ -154,8 +155,9 @@ const ISSUES: Omit<TroubleshootingIssue, "searchable">[] = [
       {
         title: "Use password authentication first",
         steps: [
-          "If your provider gave you a root password, connect with password first",
-          "Then add your SSH key to the authorized_keys file",
+          "If you are still before the installer step, connect as root with the VPS password first",
+          "If root login is disabled, connect as ubuntu and run sudo -i before continuing",
+          "Then run the installer so ACFS can set up key-based login for your normal SSH user",
         ],
       },
     ],

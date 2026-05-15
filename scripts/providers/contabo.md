@@ -85,19 +85,17 @@ Contabo requires a root password during setup.
 
 ---
 
-## Step 6: Add Your SSH Key (Optional but Recommended)
+## Step 6: Skip Provider SSH Key Setup
 
-1. Scroll to "Add-ons" section
-2. Find "SSH Key" option
-3. Paste your public SSH key
+For the ACFS beginner flow, use Contabo's root password login first and let the installer handle SSH keys.
 
-If you don't have an SSH key yet:
-```bash
-ssh-keygen -t ed25519 -C "acfs" -f ~/.ssh/acfs_ed25519 -N ""
-cat ~/.ssh/acfs_ed25519.pub
-```
+1. Scroll through the "Add-ons" section
+2. Leave the SSH key option empty unless you are intentionally reusing an existing server key
+3. Keep the root password from Step 5; you need it for the first login
 
-![Contabo Step 6: Add SSH key](screenshots/contabo-step6-add-ssh-key.png)
+ACFS creates the `ubuntu` user after the first root-password login, then either sets up SSH key access automatically or prints the exact follow-up command to run.
+
+![Contabo Step 6: Review add-ons](screenshots/contabo-step6-add-ssh-key.png)
 
 ---
 
@@ -146,16 +144,16 @@ Do not create the `ubuntu` user manually. Run ACFS from the initial `root` sessi
 curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/agentic_coding_flywheel_setup/main/install.sh | bash -s -- --yes --mode vibe
 ```
 
-ACFS creates the `ubuntu` user, enables passwordless sudo for that user in vibe mode, and copies root SSH keys into `/home/ubuntu/.ssh/authorized_keys` when Contabo installed your SSH key for `root`.
+ACFS creates the `ubuntu` user and enables passwordless sudo for that user in vibe mode. If you deliberately added a root SSH key in Contabo, ACFS copies that key into `/home/ubuntu/.ssh/authorized_keys`.
 
-When the installer finishes, reconnect from your local machine:
+When the installer finishes, read its final summary before reconnecting. If there is no SSH-key follow-up warning, reconnect from your local machine:
 
 ```bash
 exit
 ssh -i ~/.ssh/acfs_ed25519 ubuntu@YOUR_IP_ADDRESS
 ```
 
-If Contabo only allowed password login and the installer prints an SSH-key follow-up warning, run this from your local machine. It asks for the Contabo root password once, then installs your ACFS public key for `ubuntu`:
+If you followed the recommended password-first path and the installer does print an SSH-key follow-up warning, run this from your local machine. It asks for the Contabo root password once, then installs your ACFS public key for `ubuntu`:
 
 ```bash
 cat ~/.ssh/acfs_ed25519.pub | ssh root@YOUR_IP_ADDRESS "read -r acfs_pubkey && test ! -L /home/ubuntu/.ssh && install -d -m 700 -o ubuntu -g ubuntu /home/ubuntu/.ssh && test ! -L /home/ubuntu/.ssh/authorized_keys && touch /home/ubuntu/.ssh/authorized_keys && { [ ! -s /home/ubuntu/.ssh/authorized_keys ] || tail -c 1 /home/ubuntu/.ssh/authorized_keys | od -An -t u1 | grep -qw 10 || printf '\n' >> /home/ubuntu/.ssh/authorized_keys; } && if ! grep -qxF \"\$acfs_pubkey\" /home/ubuntu/.ssh/authorized_keys; then printf '%s\n' \"\$acfs_pubkey\" >> /home/ubuntu/.ssh/authorized_keys; fi && chown ubuntu:ubuntu /home/ubuntu/.ssh/authorized_keys && chmod 600 /home/ubuntu/.ssh/authorized_keys"

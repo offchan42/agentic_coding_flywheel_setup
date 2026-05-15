@@ -2573,7 +2573,7 @@ tests:
 
 ## VPS Providers
 
-ACFS works on any Ubuntu VPS with SSH key login. Here are recommended providers optimized for multi-agent workloads.
+ACFS works on any Ubuntu VPS with SSH access and either root password login or a provider console that lets you become root for the first install. Here are recommended providers optimized for multi-agent workloads.
 
 > **Why 48-64GB RAM?** Each AI coding agent uses ~2GB RAM. To run 10-20+ agents simultaneously, you need 48GB+ RAM. Don't bottleneck a $400+/month AI investment to save $20 on hosting.
 
@@ -2613,7 +2613,7 @@ After installation, run `acfs capacity --profile 25-agents --recommend-ntm` on t
 
 ### Other Providers
 
-Any provider with Ubuntu VPS and SSH key login works. The wizard at [agent-flywheel.com](https://agent-flywheel.com) has step-by-step guides.
+Any provider with an Ubuntu VPS, SSH access, and a first-login root password or root console works. The wizard at [agent-flywheel.com](https://agent-flywheel.com) has step-by-step guides.
 
 ### Provider Setup Guides
 
@@ -2621,15 +2621,15 @@ ACFS includes detailed step-by-step guides for each supported provider in `scrip
 
 | Provider | Guide | Key Sections |
 |----------|-------|--------------|
-| **Contabo** | `contabo.md` | Account creation, plan selection, data center choice, SSH key setup |
-| **OVH** | `ovh.md` | Control panel navigation, instance configuration, networking |
+| **Contabo** | `contabo.md` | Account creation, plan selection, data center choice, root password setup |
+| **OVH** | `ovh.md` | Control panel navigation, password authentication, instance configuration, networking |
 | **Hetzner** | `hetzner.md` | Project setup, firewall rules, console access |
 
 Each guide includes:
 - **Screenshots** for every step (in `scripts/providers/screenshots/`)
 - **Pricing breakdowns** with recommendations
 - **Region selection** guidance (latency, privacy)
-- **SSH key** configuration specific to that provider
+- Password-first login guidance and post-install SSH key recovery specific to that provider
 - **Troubleshooting** for common provisioning issues
 
 **Provider Comparison:**

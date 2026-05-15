@@ -759,8 +759,9 @@ export default function RentVPSPage() {
 
       {/* Other providers note */}
       <AlertCard variant="tip" title="Using a different provider?">
-        Any provider with <Jargon term="ubuntu">Ubuntu</Jargon> <Jargon term="vps">VPS</Jargon> and <Jargon term="ssh">SSH</Jargon> key login works. Just make sure
-        you can add your <Jargon term="public-key">SSH public key</Jargon> during setup.
+        Any provider with an <Jargon term="ubuntu">Ubuntu</Jargon> <Jargon term="vps">VPS</Jargon>,{" "}
+        <Jargon term="ssh">SSH</Jargon> access, and a first-login root password or root console works.
+        Choose password authentication when it is offered; ACFS sets up your SSH key after the first install.
       </AlertCard>
 
       {/* Beginner Guide */}

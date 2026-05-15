@@ -21,10 +21,13 @@ import {
   CREATE_VPS_CHECKLIST_KEY,
   getACFSRef,
   getCreateVPSChecklist,
+  getSSHUsername,
   getVPSReadinessSelection,
   getVPSIP,
+  normalizeSSHUsername,
   setACFSRef,
   setCreateVPSChecklist,
+  setSSHUsername,
   setVPSReadinessSelection,
   setVPSIP,
   VPS_READINESS_SELECTION_KEY,
@@ -39,6 +42,7 @@ type StorageController = {
 const originalWindow = globalThis.window;
 const originalLocalStorage = globalThis.localStorage;
 const VPS_IP_TEST_KEY = "agent-flywheel-vps-ip";
+const SSH_USERNAME_TEST_KEY = "agent-flywheel-ssh-username";
 
 function installMockBrowser(options?: {
   failSetItemForKey?: string;
@@ -315,5 +319,26 @@ describe("progress persistence guards", () => {
     expect(getACFSRef()).toBeNull();
     expect(browser.getStoredValue(ACFS_REF_KEY)).toBe("");
     expect(browser.dispatchCalls).toHaveLength(1);
+  });
+
+  test("SSH username persistence rejects root as an ACFS target user", () => {
+    expect(normalizeSSHUsername("root")).toBeNull();
+
+    const queryBrowser = installMockBrowser({
+      url: "https://example.test/wizard/run-installer?user=root",
+    });
+    expect(getSSHUsername()).toBe("ubuntu");
+    expect(queryBrowser.dispatchCalls).toHaveLength(0);
+
+    const storedBrowser = installMockBrowser({
+      initialValues: {
+        [SSH_USERNAME_TEST_KEY]: "root",
+      },
+      url: "https://example.test/wizard/run-installer",
+    });
+    expect(getSSHUsername()).toBe("ubuntu");
+    expect(setSSHUsername("root")).toBe(false);
+    expect(storedBrowser.getStoredValue(SSH_USERNAME_TEST_KEY)).toBe("root");
+    expect(storedBrowser.dispatchCalls).toHaveLength(0);
   });
 });

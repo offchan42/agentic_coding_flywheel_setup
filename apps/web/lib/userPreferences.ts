@@ -160,6 +160,7 @@ export function normalizeSSHUsername(username: string | null | undefined): strin
   const value = username?.trim() ?? "";
   if (!value) return null;
   if (!SSH_USERNAME_PATTERN.test(value)) return null;
+  if (value === "root") return null;
   return value;
 }
 

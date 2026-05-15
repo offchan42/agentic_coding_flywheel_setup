@@ -184,6 +184,7 @@ export function CommandBuilderPanel() {
   const usernameError = useMemo(() => {
     const trimmed = usernameDraft.trim();
     if (!trimmed) return "Enter a Linux username such as ubuntu or devuser.";
+    if (trimmed === "root") return "Use ubuntu or another non-root Linux user; root is only for the first SSH login.";
     if (normalizeSSHUsername(trimmed)) return null;
     return "Use lowercase letters, numbers, dots, underscores, or hyphens, and start with a lowercase letter or underscore.";
   }, [usernameDraft]);

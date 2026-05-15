@@ -54,6 +54,14 @@ describe("buildRootKeyRepairCommand", () => {
     expect(command).toContain("/home/ubuntu/.ssh/authorized_keys");
     expect(command).not.toContain("Bad User");
   });
+
+  test("treats root as the bootstrap account, not the ACFS target user", () => {
+    const command = buildRootKeyRepairCommand("root", "203.0.113.42");
+
+    expect(command).toContain("ssh root@203.0.113.42");
+    expect(command).toContain("/home/ubuntu/.ssh/authorized_keys");
+    expect(command).not.toContain("/root/.ssh/authorized_keys");
+  });
 });
 
 describe("buildInstallCommand", () => {
@@ -78,6 +86,13 @@ describe("buildInstallCommand", () => {
 
     expect(command).not.toContain("TARGET_USER=");
     expect(command).not.toContain("Admin");
+  });
+
+  test("omits TARGET_USER for root so setup targets ubuntu instead", () => {
+    const command = buildInstallCommand("vibe", null, "root");
+
+    expect(command).not.toContain("TARGET_USER=");
+    expect(command).not.toContain('TARGET_USER="root"');
   });
 
   test("rejects the legacy master branch in generated install commands", () => {
@@ -132,6 +147,23 @@ describe("buildCommands", () => {
       ip: "10.20.30.40",
       os: "mac",
       username: "bad user",
+      mode: "vibe",
+      ref: null,
+    });
+
+    const installer = commands.find((command) => command.id === "installer");
+    const sshUser = commands.find((command) => command.id === "ssh-user");
+
+    expect(installer?.command).not.toContain("TARGET_USER=");
+    expect(sshUser?.label).toBe("SSH as ubuntu");
+    expect(sshUser?.command).toContain("ubuntu@10.20.30.40");
+  });
+
+  test("falls back to ubuntu when the username input is root", () => {
+    const commands = buildCommands({
+      ip: "10.20.30.40",
+      os: "mac",
+      username: "root",
       mode: "vibe",
       ref: null,
     });

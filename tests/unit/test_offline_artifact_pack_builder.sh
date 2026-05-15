@@ -51,7 +51,7 @@ case "$url" in
         file_name="${path#*/}"
         source_path="${ACFS_OFFLINE_PACK_TEST_ARTIFACTS_DIR:?}/$name/$file_name"
         [[ -f "$source_path" ]] || exit 22
-        cp "$source_path" "$output"
+        /bin/cp "$source_path" "$output"
         ;;
     *)
         exit 22
@@ -150,7 +150,7 @@ run_pack() {
     local status=0
 
     set +e
-    output="$(ACFS_OFFLINE_PACK_TEST_ARTIFACTS_DIR="$ARTIFACT_DIR" PATH="$ARTIFACT_DIR/bin:$PATH" bash "$OFFLINE_PACK_SH" "$@" 2>&1)"
+    output="$(ACFS_OFFLINE_PACK_CURL_BIN="$ARTIFACT_DIR/bin/curl" ACFS_OFFLINE_PACK_TEST_ARTIFACTS_DIR="$ARTIFACT_DIR" PATH="$ARTIFACT_DIR/bin:$PATH" bash "$OFFLINE_PACK_SH" "$@" 2>&1)"
     status=$?
     set -e
 
@@ -227,6 +227,36 @@ test_build_writes_manifest_and_verified_artifact() {
     jq -e '.status == "pass" and .output.packMode == "complete"' <<<"$output" >/dev/null || return 1
 
     pass "build_writes_manifest_and_verified_artifact"
+}
+
+test_build_ignores_path_poisoned_pack_tools() {
+    local source_root output_dir output status tool marker
+    local poison_markers=()
+    local poison_tools=(jq sha256sum shasum awk wc tr date uname cp mkdir find git)
+    source_root="$(write_fixture_source trusted-tools valid)"
+    output_dir="$ARTIFACT_DIR/trusted-tools/output"
+
+    for tool in "${poison_tools[@]}"; do
+        marker="$ARTIFACT_DIR/trusted-tools-$tool-used"
+        poison_markers+=("$marker")
+        cat > "$ARTIFACT_DIR/bin/$tool" <<EOF
+#!/usr/bin/env bash
+printf 'poisoned $tool\\n' > "$marker"
+exit 99
+EOF
+        chmod +x "$ARTIFACT_DIR/bin/$tool"
+    done
+
+    output="$(run_pack trusted-tools build --json --source-root "$source_root" --output "$output_dir" --module stack.rch)"
+    status="$(cat "$ARTIFACT_DIR/trusted-tools.exit")"
+
+    [[ "$status" -eq 0 ]] || return 1
+    for marker in "${poison_markers[@]}"; do
+        [[ ! -e "$marker" ]] || return 1
+    done
+    jq -e '.status == "pass" and .pack.artifacts[0].verifiedInstallerKey == "rch"' <<<"$output" >/dev/null || return 1
+
+    pass "build_ignores_path_poisoned_pack_tools"
 }
 
 test_checksum_mismatch_fails_closed() {
@@ -327,6 +357,7 @@ run_all_tests() {
         test_dry_run_json_uses_manifest_and_checksums
         test_non_https_source_is_refused
         test_build_writes_manifest_and_verified_artifact
+        test_build_ignores_path_poisoned_pack_tools
         test_checksum_mismatch_fails_closed
         test_unknown_module_is_refused
         test_non_verified_module_is_refused

@@ -695,10 +695,16 @@ export default function RunInstallerPage() {
 
           <GuideSection title="Step-by-Step">
             <div className="space-y-4">
-              <GuideStep number={1} title="Make sure you're connected to your VPS">
+              <GuideStep number={1} title="Make sure you're in the root shell on your VPS">
                 Your <Jargon term="terminal">terminal</Jargon> should show something like{" "}
-                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">ubuntu@vps:~$</code>
-                or <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">root@vps:~#</code>.
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">root@vps:~#</code>,
+                and the prompt should end with <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">#</code>{" "}
+                before you paste the installer.
+                <br /><br />
+                If it shows <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">ubuntu@vps:~$</code>,
+                run <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">sudo -i</code> first. Wait for
+                the prompt to change to <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">root@vps:~#</code>{" "}
+                before running the command.
                 <br /><br />
                 If it shows your regular computer name, you need to SSH in first!
               </GuideStep>

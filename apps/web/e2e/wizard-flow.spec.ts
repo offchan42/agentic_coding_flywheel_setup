@@ -475,7 +475,7 @@ test.describe("SSH Connect Page - Critical Bug Prevention", () => {
     await page.goto("/wizard/ssh-connect");
     await expect(page.locator("h1").first()).toBeVisible({ timeout: TIMEOUTS.LOADING_SPINNER });
 
-    const bodyText = await page.locator("body").textContent();
+    const bodyText = (await page.locator("body").textContent()) ?? "";
     expect(bodyText).toContain('If "root" is disabled, try ubuntu and become root');
     expect(bodyText).toContain("Switch the ubuntu fallback session into a root shell");
     expect(bodyText).toContain("continue only after your prompt ends with");
@@ -1063,10 +1063,16 @@ test.describe("Step 9: Run Installer Page", () => {
     await page.goto("/wizard/run-installer");
     await page.waitForLoadState("domcontentloaded");
 
-    const bodyText = await page.locator("body").textContent();
+    let bodyText = (await page.locator("body").textContent()) ?? "";
     expect(bodyText).toContain("Run this command from that root session");
     expect(bodyText).toContain("user automatically during installation");
     expect(bodyText).toContain("Otherwise, stay in the root session");
+
+    await page.getByRole("button", { name: /make it simpler/i }).click();
+    bodyText = (await page.locator("body").textContent()) ?? "";
+    expect(bodyText).toContain("Make sure you're in the root shell on your VPS");
+    expect(bodyText).toContain("before you paste the installer");
+    expect(bodyText).toMatch(/If it shows\s*ubuntu@vps:~\$,\s*run\s*sudo -i\s*first/);
     expect(bodyText).not.toContain("su - ubuntu");
     expect(bodyText).not.toContain("no password needed");
   });

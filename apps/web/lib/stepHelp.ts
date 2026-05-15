@@ -130,7 +130,7 @@ export const STEP_HELP: Partial<Record<number, StepHelp>> = {
       {
         symptom: "Permission denied (publickey)",
         solution:
-          "This usually means the SSH key isn't being found. Make sure you're using: ssh -i ~/.ssh/acfs_ed25519 root@YOUR_IP",
+          "This first connection step expects password login, so the SSH command should not include -i yet. Try ssh root@YOUR_IP. If the server still says publickey and never asks for a password, use your provider console or recreate the VPS with root password login enabled. If only root login is disabled, try ssh ubuntu@YOUR_IP with the same VPS password, run sudo -i, and continue only after the prompt ends with #.",
       },
       {
         symptom: "Host key verification failed",

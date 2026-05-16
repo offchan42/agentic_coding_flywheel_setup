@@ -131,6 +131,38 @@ passwd_home_from_entry() {
   printf '%s\n' "$passwd_home"
 }
 
+read_state_string_from_file() {
+    local state_file="${1:-}"
+    local key="${2:-}"
+    local jq_expr="${3:-}"
+    local value=""
+    local jq_bin=""
+    local sed_bin=""
+    local head_bin=""
+
+    [[ -f "$state_file" ]] || return 1
+    [[ "$key" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
+
+    jq_bin="$(system_binary_path jq 2>/dev/null || true)"
+    if [[ -n "$jq_bin" && -n "$jq_expr" ]]; then
+        value="$("$jq_bin" -r "$jq_expr" "$state_file" 2>/dev/null || true)"
+    fi
+
+    if [[ -z "$value" ]]; then
+        sed_bin="$(system_binary_path sed 2>/dev/null || true)"
+        head_bin="$(system_binary_path head 2>/dev/null || true)"
+        if [[ -n "$sed_bin" && -n "$head_bin" ]]; then
+            value="$("$sed_bin" -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$state_file" 2>/dev/null | "$head_bin" -n 1)"
+        elif [[ -n "$sed_bin" ]]; then
+            value="$("$sed_bin" -n "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p" "$state_file" 2>/dev/null || true)"
+            value="${value%%$'\n'*}"
+        fi
+    fi
+
+    [[ -n "$value" ]] || return 1
+    printf '%s\n' "$value"
+}
+
 resolve_current_home() {
     local current_user=""
     local home_candidate=""
@@ -200,15 +232,7 @@ read_bin_dir_from_state_file() {
     local state_file="$1"
     local bin_dir=""
 
-    [[ -f "$state_file" ]] || return 1
-
-    if command -v jq &>/dev/null; then
-        bin_dir="$(jq -r '.bin_dir // empty' "$state_file" 2>/dev/null || true)"
-    fi
-
-    if [[ -z "$bin_dir" ]]; then
-        bin_dir="$(sed -n 's/.*"bin_dir"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$state_file" | head -n 1)"
-    fi
+    bin_dir="$(read_state_string_from_file "$state_file" bin_dir '.bin_dir // empty' 2>/dev/null || true)"
 
     if [[ -n "$bin_dir" ]] && [[ "$bin_dir" == /* ]] && [[ "$bin_dir" != "/" ]]; then
         printf '%s\n' "${bin_dir%/}"
@@ -222,15 +246,7 @@ read_target_home_from_state_file() {
     local state_file="$1"
     local target_home=""
 
-    [[ -f "$state_file" ]] || return 1
-
-    if command -v jq &>/dev/null; then
-        target_home="$(jq -r '.target_home // empty' "$state_file" 2>/dev/null || true)"
-    fi
-
-    if [[ -z "$target_home" ]]; then
-        target_home="$(sed -n 's/.*"target_home"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$state_file" | head -n 1)"
-    fi
+    target_home="$(read_state_string_from_file "$state_file" target_home '.target_home // empty' 2>/dev/null || true)"
 
     target_home="$(sanitize_abs_nonroot_path "$target_home" 2>/dev/null || true)"
     [[ -n "$target_home" ]] || return 1

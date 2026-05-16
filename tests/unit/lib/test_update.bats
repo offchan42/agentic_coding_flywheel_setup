@@ -4279,6 +4279,67 @@ EOF
     printf '%s\n' "$STUB_DIR:/usr/bin:/bin"
 }
 
+@test "nightly update state readers ignore PATH-poisoned jq" {
+    local nightly="$PROJECT_ROOT/scripts/lib/nightly_update.sh"
+    local nightly_path
+    local fake_bin
+    local marker
+    local root_home
+    local target_home
+    local poison_home
+    local system_state
+
+    root_home="$(create_temp_dir)"
+    target_home="$(create_temp_dir)"
+    poison_home="$(create_temp_dir)"
+    fake_bin="$(create_temp_dir)"
+    marker="$BATS_TEST_TMPDIR/nightly-fake-jq-used"
+    system_state="$root_home/system-state.json"
+
+    mkdir -p \
+        "$root_home/.acfs/scripts/lib" \
+        "$target_home/.acfs/scripts/lib" \
+        "$target_home/.acfs/logs/updates" \
+        "$target_home/.local/bin" \
+        "$poison_home/.acfs/scripts/lib" \
+        "$poison_home/.acfs/logs/updates" \
+        "$poison_home/.local/bin"
+
+    cat > "$system_state" <<EOF
+{
+  "target_home": "$target_home",
+  "bin_dir": "$target_home/.local/bin"
+}
+EOF
+    cat > "$fake_bin/jq" <<EOF
+#!/usr/bin/env bash
+: > "$marker"
+case "\$*" in
+    *target_home*) printf '%s\n' "$poison_home" ;;
+    *bin_dir*) printf '%s\n' "$poison_home/.local/bin" ;;
+    *) printf '%s\n' "$poison_home" ;;
+esac
+EOF
+    cat > "$target_home/.local/bin/acfs-update" <<'EOF'
+#!/usr/bin/env bash
+printf 'REAL_NIGHTLY HOME=%s TARGET_HOME=%s ACFS_HOME=%s\n' "$HOME" "${TARGET_HOME:-}" "${ACFS_HOME:-}"
+EOF
+    cat > "$poison_home/.local/bin/acfs-update" <<'EOF'
+#!/usr/bin/env bash
+printf 'POISON_NIGHTLY HOME=%s TARGET_HOME=%s ACFS_HOME=%s\n' "$HOME" "${TARGET_HOME:-}" "${ACFS_HOME:-}"
+EOF
+    chmod +x "$fake_bin/jq" "$target_home/.local/bin/acfs-update" "$poison_home/.local/bin/acfs-update"
+
+    nightly_path="$(setup_nightly_update_identity_stubs)"
+    run env -i PATH="$fake_bin:$nightly_path" HOME="$root_home" ACFS_SYSTEM_STATE_FILE="$system_state" bash "$nightly"
+
+    assert_success
+    assert_output --partial "Running: $target_home/.local/bin/acfs-update --yes --quiet --no-self-update"
+    assert_output --partial "REAL_NIGHTLY HOME=$target_home TARGET_HOME=$target_home ACFS_HOME=$target_home/.acfs"
+    refute_output --partial "POISON_NIGHTLY"
+    [[ ! -e "$marker" ]]
+}
+
 @test "nightly update honors explicit system state and repairs target runtime home" {
     local nightly="$PROJECT_ROOT/scripts/lib/nightly_update.sh"
     local nightly_path
@@ -8886,6 +8947,10 @@ EOF
     assert_success
 
     run grep -F 'ACFS_BIN_DIR="$(read_bin_dir_from_state_file "$state_candidate" 2>/dev/null || true)"' "$nightly"
+    assert_success
+    run grep -F 'command -v jq' "$nightly"
+    assert_failure
+    run grep -F 'jq_bin="$(system_binary_path jq 2>/dev/null || true)"' "$nightly"
     assert_success
     run grep -F 'ACFS_BIN_DIR="$(sanitize_abs_nonroot_path "${ACFS_BIN_DIR:-}" 2>/dev/null || true)"' "$nightly"
     assert_success

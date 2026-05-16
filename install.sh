@@ -4210,7 +4210,7 @@ run_ubuntu_upgrade_phase() {
             local sudo_bin=""
             sudo_bin="$(acfs_early_sudo_binary_path 2>/dev/null || true)"
             if [[ -n "$sudo_bin" ]]; then
-                "$sudo_bin" "$apt_get_bin" update -qq && "$sudo_bin" "$apt_get_bin" install -y jq >/dev/null 2>&1 || true
+                "$sudo_bin" -n "$apt_get_bin" update -qq && "$sudo_bin" -n "$apt_get_bin" install -y jq >/dev/null 2>&1 || true
             fi
         fi
     fi
@@ -4397,9 +4397,9 @@ run_ubuntu_upgrade_phase() {
                 chown_bin="$(acfs_early_system_binary_path chown 2>/dev/null || true)"
                 id_bin="$(acfs_early_system_binary_path id 2>/dev/null || true)"
                 if [[ $EUID -ne 0 && -n "$sudo_bin" ]]; then
-                    "$sudo_bin" "$mkdir_bin" -p "${ACFS_RESUME_DIR:-/var/lib/acfs}"
+                    "$sudo_bin" -n "$mkdir_bin" -p "${ACFS_RESUME_DIR:-/var/lib/acfs}"
                     if [[ -n "$chown_bin" && -n "$id_bin" ]]; then
-                        "$sudo_bin" "$chown_bin" "$("$id_bin" -u):$("$id_bin" -g)" "${ACFS_RESUME_DIR:-/var/lib/acfs}" 2>/dev/null || true
+                        "$sudo_bin" -n "$chown_bin" "$("$id_bin" -u):$("$id_bin" -g)" "${ACFS_RESUME_DIR:-/var/lib/acfs}" 2>/dev/null || true
                     fi
                 fi
             fi

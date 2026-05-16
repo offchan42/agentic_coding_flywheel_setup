@@ -372,6 +372,19 @@ EOF
     assert_success
 }
 
+@test "installer upgrade setup uses noninteractive sudo fallbacks" {
+    local installer="$PROJECT_ROOT/install.sh"
+
+    run grep -F '"$sudo_bin" -n "$apt_get_bin" update -qq && "$sudo_bin" -n "$apt_get_bin" install -y jq' "$installer"
+    assert_success
+
+    run grep -F '"$sudo_bin" -n "$mkdir_bin" -p "${ACFS_RESUME_DIR:-/var/lib/acfs}"' "$installer"
+    assert_success
+
+    run grep -F '"$sudo_bin" -n "$chown_bin" "$("$id_bin" -u):$("$id_bin" -g)" "${ACFS_RESUME_DIR:-/var/lib/acfs}"' "$installer"
+    assert_success
+}
+
 @test "run_as_target: passwd home overrides stale TARGET_HOME and home-scoped bin dir" {
     local target_home
     local stale_home

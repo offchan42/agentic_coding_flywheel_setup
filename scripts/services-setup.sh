@@ -488,9 +488,9 @@ run_as_user() {
     if [[ -n "$sudo_bin" ]]; then
         if [[ -n "$target_home_for_cd" ]]; then
             # shellcheck disable=SC2016  # $HOME/$@ expand inside sh -c.
-            "$sudo_bin" -u "$TARGET_USER" -H "${env_cmd[@]}" "$sh_bin" -c 'cd "$HOME" || exit 1; exec "$@"' _ "${command_argv[@]}"
+            "$sudo_bin" -n -u "$TARGET_USER" -H "${env_cmd[@]}" "$sh_bin" -c 'cd "$HOME" || exit 1; exec "$@"' _ "${command_argv[@]}"
         else
-            "$sudo_bin" -u "$TARGET_USER" -H "${env_cmd[@]}" "${command_argv[@]}"
+            "$sudo_bin" -n -u "$TARGET_USER" -H "${env_cmd[@]}" "${command_argv[@]}"
         fi
         return $?
     fi
@@ -570,9 +570,9 @@ run_as_user_shell() {
     elif sudo_bin="$(services_setup_system_binary_path sudo 2>/dev/null || true)" && [[ -n "$sudo_bin" ]]; then
         if [[ -n "$target_home_for_cd" ]]; then
             # shellcheck disable=SC2016  # $HOME/$@ expand inside bash -c.
-            "$sudo_bin" -u "$TARGET_USER" -H "${env_cmd[@]}" "$bash_bin" -c 'cd "$HOME" || exit 1; exec "$@"' _ "$bash_bin" -c "$cmd"
+            "$sudo_bin" -n -u "$TARGET_USER" -H "${env_cmd[@]}" "$bash_bin" -c 'cd "$HOME" || exit 1; exec "$@"' _ "$bash_bin" -c "$cmd"
         else
-            "$sudo_bin" -u "$TARGET_USER" -H "${env_cmd[@]}" "$bash_bin" -c "$cmd"
+            "$sudo_bin" -n -u "$TARGET_USER" -H "${env_cmd[@]}" "$bash_bin" -c "$cmd"
         fi
     elif runuser_bin="$(services_setup_system_binary_path runuser 2>/dev/null || true)" && [[ -n "$runuser_bin" ]]; then
         if [[ -n "$target_home_for_cd" ]]; then

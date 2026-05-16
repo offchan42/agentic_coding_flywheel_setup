@@ -3736,12 +3736,12 @@ EOF
 
     run run_as_user printf ok
     assert_success
-    assert_output --partial "safe-sudo:"
+    assert_output --partial "safe-sudo:-n -u acfsuser -H"
     [[ ! -e "$marker" ]] || fail "function-poisoned command executed: $(<"$marker")"
 
     run run_as_user_shell 'printf ok'
     assert_success
-    assert_output --partial "safe-sudo:"
+    assert_output --partial "safe-sudo:-n -u acfsuser -H"
     [[ ! -e "$marker" ]] || fail "function-poisoned command executed: $(<"$marker")"
 }
 

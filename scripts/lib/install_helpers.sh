@@ -935,12 +935,12 @@ if ! declare -f run_as_target >/dev/null 2>&1; then
             return $?
         fi
 
-        # Prefer sudo (non-login) when available.
+        # Prefer noninteractive sudo (non-login) when available.
         sudo_bin="$(_acfs_system_binary_path sudo 2>/dev/null || true)"
         if [[ -n "$sudo_bin" ]]; then
             # shellcheck disable=SC2016  # $HOME/$@ expand inside sh -c
             # Use sh -c to ensure the cd happens as the target user.
-            "$sudo_bin" -u "$user" "$env_bin" "${env_args[@]}" "$sh_bin" -c 'cd "$HOME" || exit 1; exec "$@"' _ "${command_argv[@]}"
+            "$sudo_bin" -n -u "$user" "$env_bin" "${env_args[@]}" "$sh_bin" -c 'cd "$HOME" || exit 1; exec "$@"' _ "${command_argv[@]}"
             return $?
         fi
 

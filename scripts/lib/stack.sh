@@ -701,7 +701,7 @@ _stack_run_as_user() {
 
     sudo_bin="$(_stack_system_binary_path sudo 2>/dev/null || true)"
     if [[ -n "$sudo_bin" ]]; then
-        "$sudo_bin" -u "$target_user" -H "$bash_bin" -c "$wrapped_cmd"
+        "$sudo_bin" -n -u "$target_user" -H "$bash_bin" -c "$wrapped_cmd"
         return $?
     fi
 

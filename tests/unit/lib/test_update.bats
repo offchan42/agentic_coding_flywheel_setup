@@ -6956,7 +6956,7 @@ EOF
     }
     run _cli_run_as_user "printf ok"
     assert_success
-    assert_output --partial "safe-sudo:"
+    assert_output --partial "safe-sudo:-n -u acfsuser -H"
     [[ ! -e "$marker" ]] || fail "_cli_run_as_user executed function-poisoned helper: $(<"$marker")"
 
     source_lib "agents"
@@ -6972,7 +6972,7 @@ EOF
     }
     run _agent_run_as_user "printf ok"
     assert_success
-    assert_output --partial "safe-sudo:"
+    assert_output --partial "safe-sudo:-n -u acfsuser -H"
     [[ ! -e "$marker" ]] || fail "_agent_run_as_user executed function-poisoned helper: $(<"$marker")"
 
     source_lib "languages"
@@ -6988,7 +6988,7 @@ EOF
     }
     run _lang_run_as_user "printf ok"
     assert_success
-    assert_output --partial "safe-sudo:"
+    assert_output --partial "safe-sudo:-n -u acfsuser -H"
     [[ ! -e "$marker" ]] || fail "_lang_run_as_user executed function-poisoned helper: $(<"$marker")"
 
     source_lib "cloud_db"
@@ -7004,7 +7004,7 @@ EOF
     }
     run _cloud_run_as_user "printf ok"
     assert_success
-    assert_output --partial "safe-sudo:"
+    assert_output --partial "safe-sudo:-n -u acfsuser -H"
     [[ ! -e "$marker" ]] || fail "_cloud_run_as_user executed function-poisoned helper: $(<"$marker")"
 
     source_lib "stack"
@@ -7021,8 +7021,15 @@ EOF
     }
     run _stack_run_as_user "printf ok"
     assert_success
-    assert_output --partial "safe-sudo:"
+    assert_output --partial "safe-sudo:-n -u acfsuser -H"
     [[ ! -e "$marker" ]] || fail "_stack_run_as_user executed function-poisoned helper: $(<"$marker")"
+}
+
+@test "cloud postgres helper uses noninteractive sudo fallback" {
+    local cloud_db="$PROJECT_ROOT/scripts/lib/cloud_db.sh"
+
+    run grep -F '"$sudo_bin" -n -u postgres -H "$bash_bin" -c "$wrapped_cmd"' "$cloud_db"
+    assert_success
 }
 
 @test "helper bin-dir selectors ignore function-poisoned getent passwd streams" {
@@ -12882,7 +12889,10 @@ EOF
     run grep -F 'echo -e "     ${GRAY}$target_ssh_command${NC}"' "$PROJECT_ROOT/install.sh"
     assert_success
 
-    run grep -F 'ssh ${TARGET_USER}@YOUR_SERVER_IP' "$PROJECT_ROOT/install.sh"
+    run grep -F 'target_ssh_command="ssh ${TARGET_USER}@YOUR_SERVER_IP"' "$PROJECT_ROOT/install.sh"
+    assert_failure
+
+    run grep -F 'echo -e "     ${GRAY}ssh ${TARGET_USER}@YOUR_SERVER_IP${NC}"' "$PROJECT_ROOT/install.sh"
     assert_failure
 }
 

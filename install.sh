@@ -3194,7 +3194,7 @@ run_as_target() {
     # IMPORTANT: Do NOT use sudo -i as it sources profile files (.profile, .bashrc)
     # which may be corrupted by third-party installers (e.g., uv adds lines that
     # reference non-existent files). Instead:
-    # - Use sudo -u to switch user without sourcing profiles
+    # - Use noninteractive sudo to switch user without sourcing profiles
     # - Set HOME explicitly in the environment
     # - Use sh -c to cd to home directory before executing
     #
@@ -3205,7 +3205,7 @@ run_as_target() {
     sudo_bin="$(acfs_early_system_binary_path sudo 2>/dev/null || true)"
     if [[ -n "$sudo_bin" ]]; then
         # shellcheck disable=SC2016  # $HOME/$@ expand inside sh -c
-        "$sudo_bin" -u "$user" "$env_bin" "${env_args[@]}" "$sh_bin" -c 'cd "$HOME" || exit 1; exec "$@"' _ "${command_argv[@]}"
+        "$sudo_bin" -n -u "$user" "$env_bin" "${env_args[@]}" "$sh_bin" -c 'cd "$HOME" || exit 1; exec "$@"' _ "${command_argv[@]}"
         return $?
     fi
 
@@ -5883,7 +5883,7 @@ install_cloud_db_legacy_db() {
                 if [[ $EUID -eq 0 && -n "$runuser_bin" ]]; then
                     postgres_runner=("$runuser_bin" -u postgres --)
                 elif [[ -n "$postgres_sudo_bin" ]]; then
-                    postgres_runner=("$postgres_sudo_bin" -u postgres -H)
+                    postgres_runner=("$postgres_sudo_bin" -n -u postgres -H)
                 fi
                 if [[ ${#postgres_runner[@]} -gt 0 && -n "$psql_bin" && -n "$createuser_bin" && -n "$createdb_bin" && -n "$grep_bin" ]]; then
                     "${postgres_runner[@]}" "$psql_bin" -tAc "SELECT 1 FROM pg_roles WHERE rolname='$TARGET_USER'" | "$grep_bin" -q 1 || \

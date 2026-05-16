@@ -292,6 +292,20 @@ EOF
         || fail "Expected run_as_target to extend PATH for target-user bins, got: $captured"
 }
 
+@test "installer target-user runners use noninteractive sudo" {
+    local helpers="$PROJECT_ROOT/scripts/lib/install_helpers.sh"
+    local installer="$PROJECT_ROOT/install.sh"
+
+    run grep -F '"$sudo_bin" -n -u "$user" "$env_bin" "${env_args[@]}" "$sh_bin"' "$helpers"
+    assert_success
+
+    run grep -F '"$sudo_bin" -n -u "$user" "$env_bin" "${env_args[@]}" "$sh_bin"' "$installer"
+    assert_success
+
+    run grep -F 'postgres_runner=("$postgres_sudo_bin" -n -u postgres -H)' "$installer"
+    assert_success
+}
+
 @test "run_as_target: passwd home overrides stale TARGET_HOME and home-scoped bin dir" {
     local target_home
     local stale_home

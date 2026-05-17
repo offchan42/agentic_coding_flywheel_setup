@@ -18,8 +18,10 @@ import {
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { CommandCard } from "@/components/command-card";
+import { buildRootKeyRepairCommand, buildUserKeyRepairCommand } from "@/lib/commandBuilder";
 
 type TroubleshootingCategory = "all" | "ssh" | "installation" | "agents" | "network";
+type CommandRunLocation = "vps" | "local";
 
 interface TroubleshootingIssue {
   id: string;
@@ -31,6 +33,7 @@ interface TroubleshootingIssue {
     title: string;
     steps: string[];
     command?: string;
+    runLocation?: CommandRunLocation;
   }>;
   prevention?: string;
   searchable: string;
@@ -42,6 +45,17 @@ const CATEGORY_META: Record<Exclude<TroubleshootingCategory, "all">, { label: st
   agents: { label: "AI Agents", icon: <Terminal className="h-4 w-4" />, color: "oklch(0.7 0.2 330)" },
   network: { label: "Network", icon: <Wifi className="h-4 w-4" />, color: "oklch(0.72 0.19 145)" },
 };
+
+const DEFAULT_TROUBLESHOOTING_USER = "ubuntu";
+const TROUBLESHOOTING_HOST_PLACEHOLDER = "YOUR_VPS_IP";
+const userKeyRepairCommand = buildUserKeyRepairCommand(
+  DEFAULT_TROUBLESHOOTING_USER,
+  TROUBLESHOOTING_HOST_PLACEHOLDER,
+);
+const rootKeyRepairCommand = buildRootKeyRepairCommand(
+  DEFAULT_TROUBLESHOOTING_USER,
+  TROUBLESHOOTING_HOST_PLACEHOLDER,
+);
 
 const ISSUES: Omit<TroubleshootingIssue, "searchable">[] = [
   {
@@ -157,16 +171,30 @@ const ISSUES: Omit<TroubleshootingIssue, "searchable">[] = [
         steps: [
           "If you are still before the installer step, connect as root with the VPS password first",
           "If root login is disabled, connect as ubuntu and run sudo -i before continuing",
+          "If sudo -i asks for a password, use the ubuntu Linux account password; if you only have the VPS root password, use the provider console or root SSH path instead",
           "Then run the installer so ACFS can set up key-based login for your normal SSH user",
         ],
       },
       {
-        title: "Run the installer key follow-up command",
+        title: "Copy the ACFS key through ubuntu first",
         steps: [
-          "If the installer finished but warned that no root SSH key was available, use the exact follow-up command printed in the installer summary",
-          "Run that command from your local machine; it asks for the VPS root password once",
+          "If the installer finished but warned that no root SSH key was available, use the follow-up command printed in the installer summary",
+          "This local command uses the ubuntu account and does not ask for the VPS root password",
+          "This default troubleshooting command targets ubuntu; if you chose a different SSH user, use the personalized command from the installer summary or wizard handoff runbook",
+        ],
+        command: userKeyRepairCommand,
+        runLocation: "local",
+      },
+      {
+        title: "Use the root fallback if ubuntu still cannot connect",
+        steps: [
+          "Use this when the ubuntu repair command cannot connect or asks for a password you do not know",
+          "This local command asks for the VPS root password once, then installs your ACFS public key for ubuntu",
+          "This default troubleshooting command targets ubuntu; if you chose a different SSH user, use the personalized root-fallback command from the installer summary or wizard handoff runbook",
           "After it completes, retry the key-based SSH command for ubuntu or your configured SSH user",
         ],
+        command: rootKeyRepairCommand,
+        runLocation: "local",
       },
     ],
     prevention: "Use password authentication for the first root login, then follow the installer summary before switching to key-based SSH.",
@@ -258,8 +286,10 @@ const ISSUES: Omit<TroubleshootingIssue, "searchable">[] = [
           "Check your current user",
           "For the first install, the prompt should show root@...#",
           "If it shows ubuntu@...$, run sudo -i before continuing",
+          "If sudo -i asks for a password, use the ubuntu Linux account password; if you only have the VPS root password, use the provider console or root SSH path instead",
         ],
         command: "whoami",
+        runLocation: "vps",
       },
       {
         title: "Re-run installer from root",
@@ -551,7 +581,7 @@ const ISSUES_WITH_SEARCH: TroubleshootingIssue[] = ISSUES.map((issue) => ({
     issue.title,
     ...issue.symptoms,
     ...issue.causes,
-    ...issue.solutions.flatMap((s) => [s.title, ...s.steps]),
+    ...issue.solutions.flatMap((s) => [s.title, ...s.steps, s.command ?? ""]),
   ]
     .join(" ")
     .toLowerCase(),
@@ -658,7 +688,7 @@ function IssueCard({ issue, isOpen, onToggle }: { issue: TroubleshootingIssue; i
                   </ul>
                   {solution.command && (
                     <div className="pl-7">
-                      <CommandCard command={solution.command} />
+                      <CommandCard command={solution.command} runLocation={solution.runLocation} />
                     </div>
                   )}
                 </div>

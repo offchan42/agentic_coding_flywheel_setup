@@ -2284,6 +2284,129 @@ test_fix_verified_install_dry_run() {
     return 0
 }
 
+test_dispatch_fix_routes_cass_with_target_tmpdir() {
+    setup_test_env
+    export TARGET_HOME="$ACFS_STATE_DIR/target-home"
+    mkdir -p "$TARGET_HOME/.local/bin"
+    export PATH="$TARGET_HOME/.local/bin:$PATH"
+
+    local original_doctor_fix_run_verified_installer_with_env=""
+    local installer_signal="$ACFS_STATE_DIR/cass-installer.env"
+    original_doctor_fix_run_verified_installer_with_env="$(declare -f doctor_fix_run_verified_installer_with_env)"
+
+    start_autofix_session >/dev/null || {
+        echo "  Failed to start autofix session"
+        cleanup_test_env
+        return 1
+    }
+
+    doctor_fix_run_verified_installer_with_env() {
+        local tool="$1"
+        local env_assignment="$2"
+        shift 2
+
+        printf '%s\n%s\n%s\n' "$tool" "$env_assignment" "$*" > "$installer_signal"
+        [[ "$tool" == "cass" ]] || return 1
+        case "$env_assignment" in
+            "TMPDIR=$TARGET_HOME/.cache/acfs/installer-tmp/cass."*) ;;
+            *) return 1 ;;
+        esac
+        [[ -d "${env_assignment#TMPDIR=}" ]] || return 1
+        [[ "$*" == "--easy-mode --verify" ]] || return 1
+
+        cat > "$TARGET_HOME/.local/bin/cass" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+        chmod +x "$TARGET_HOME/.local/bin/cass"
+        return 0
+    }
+
+    if ! dispatch_fix "stack.cass" "fail" "install cass" >/dev/null 2>&1; then
+        echo "  dispatch_fix should route stack.cass through the target TMPDIR verified installer"
+        eval "$original_doctor_fix_run_verified_installer_with_env"
+        cleanup_test_env
+        return 1
+    fi
+
+    if [[ ! -s "$installer_signal" ]]; then
+        echo "  stack.cass did not invoke the verified installer"
+        eval "$original_doctor_fix_run_verified_installer_with_env"
+        cleanup_test_env
+        return 1
+    fi
+
+    if [[ ! -x "$TARGET_HOME/.local/bin/cass" ]]; then
+        echo "  stack.cass repair did not install cass in TARGET_HOME"
+        eval "$original_doctor_fix_run_verified_installer_with_env"
+        cleanup_test_env
+        return 1
+    fi
+
+    eval "$original_doctor_fix_run_verified_installer_with_env"
+    cleanup_test_env
+    return 0
+}
+
+test_fix_verified_install_ignores_gcloud_bv_shadow() {
+    setup_test_env
+    mkdir -p "$HOME/google-cloud-sdk/bin" "$HOME/.local/bin"
+    export PATH="$HOME/google-cloud-sdk/bin:$PATH"
+
+    local original_doctor_fix_run_verified_installer=""
+    local installer_signal="$ACFS_STATE_DIR/bv-installer-invoked"
+    original_doctor_fix_run_verified_installer="$(declare -f doctor_fix_run_verified_installer)"
+
+    cat > "$HOME/google-cloud-sdk/bin/bv" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+    chmod +x "$HOME/google-cloud-sdk/bin/bv"
+
+    start_autofix_session >/dev/null || {
+        echo "  Failed to start autofix session"
+        cleanup_test_env
+        return 1
+    }
+
+    doctor_fix_run_verified_installer() {
+        local tool="$1"
+        : > "$installer_signal"
+        [[ "$tool" == "bv" ]] || return 1
+        cat > "$HOME/.local/bin/bv" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+        chmod +x "$HOME/.local/bin/bv"
+        return 0
+    }
+
+    if ! fix_verified_install "stack.bv" "bv" "bv" >/dev/null 2>&1; then
+        echo "  fix_verified_install should repair a gcloud-shadowed bv"
+        eval "$original_doctor_fix_run_verified_installer"
+        cleanup_test_env
+        return 1
+    fi
+
+    if [[ ! -f "$installer_signal" ]]; then
+        echo "  fix_verified_install incorrectly treated gcloud's bv as the Beads Viewer install"
+        eval "$original_doctor_fix_run_verified_installer"
+        cleanup_test_env
+        return 1
+    fi
+
+    if [[ ! -x "$HOME/.local/bin/bv" ]]; then
+        echo "  fix_verified_install did not create the target Beads Viewer binary"
+        eval "$original_doctor_fix_run_verified_installer"
+        cleanup_test_env
+        return 1
+    fi
+
+    eval "$original_doctor_fix_run_verified_installer"
+    cleanup_test_env
+    return 0
+}
+
 test_fix_verified_install_ms_arm64_fallback_uses_cargo() {
     setup_test_env
     export TARGET_HOME="$ACFS_STATE_DIR/target-home"
@@ -3608,6 +3731,8 @@ main() {
     run_test test_fix_verified_install_applies
     run_test test_fix_verified_install_uses_target_runtime_home
     run_test test_fix_verified_install_dry_run
+    run_test test_dispatch_fix_routes_cass_with_target_tmpdir
+    run_test test_fix_verified_install_ignores_gcloud_bv_shadow
     run_test test_fix_verified_install_ms_arm64_fallback_uses_cargo
     run_test test_fix_verified_install_removes_binary_when_record_change_fails
     run_test test_fix_ssh_server_records_change_when_enabling_service

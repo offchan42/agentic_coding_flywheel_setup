@@ -779,27 +779,135 @@ doctor_fix_require_security() {
     return 0
 }
 
-doctor_fix_run_verified_installer() {
-    local tool="$1"
+doctor_fix_parse_env_assignment() {
+    local assignment="${1:-}"
+    local -n _name_ref="$2"
+    local -n _value_ref="$3"
+
+    _name_ref=""
+    _value_ref=""
+    [[ -n "$assignment" ]] || return 0
+
+    if [[ "$assignment" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+        _name_ref="${BASH_REMATCH[1]}"
+        _value_ref="${BASH_REMATCH[2]}"
+        return 0
+    fi
+
+    doctor_fix_log WARN "Invalid installer environment assignment: $assignment"
+    return 1
+}
+
+doctor_fix_build_runtime_env_args() {
+    local -n _env_args_ref="$1"
+    local extra_env_assignment="${2:-}"
+    local env_name=""
+    local env_value=""
+    local runtime_home=""
+    local runtime_path=""
+    local runtime_user=""
+
+    _env_args_ref=()
+    runtime_home="$(doctor_fix_runtime_home 2>/dev/null || true)"
+    runtime_path="$(doctor_fix_runtime_path 2>/dev/null || true)"
+    runtime_user="$(doctor_fix_runtime_user 2>/dev/null || true)"
+    if [[ -z "$runtime_home" || -z "$runtime_path" || -z "$runtime_user" ]]; then
+        doctor_fix_log WARN "Unable to resolve runtime environment for verified installer"
+        return 1
+    fi
+    doctor_fix_is_valid_username "$runtime_user" || [[ "$runtime_user" == "root" ]] || {
+        doctor_fix_log WARN "Invalid runtime user for verified installer: $runtime_user"
+        return 1
+    }
+
+    doctor_fix_parse_env_assignment "$extra_env_assignment" env_name env_value || return $?
+
+    _env_args_ref=(
+        "TARGET_USER=$runtime_user" \
+        "TARGET_HOME=$runtime_home" \
+        "HOME=$runtime_home" \
+        "PATH=$runtime_path"
+    )
+    if [[ -n "$env_name" ]]; then
+        _env_args_ref+=("$env_name=$env_value")
+    fi
+}
+
+doctor_fix_run_in_runtime_context() {
+    local extra_env_assignment="${1:-}"
     shift
+    local env_bin=""
+    local runuser_bin=""
+    local runtime_user=""
+    local sudo_bin=""
+    local current_user=""
+    local -a env_args=()
+
+    [[ $# -gt 0 ]] || {
+        doctor_fix_log WARN "doctor_fix_run_in_runtime_context requires a command"
+        return 1
+    }
+
+    env_bin="$(doctor_fix_system_binary_path env 2>/dev/null || true)"
+    [[ -n "$env_bin" ]] || {
+        doctor_fix_log WARN "Unable to locate env for target-user command"
+        return 1
+    }
+
+    doctor_fix_build_runtime_env_args env_args "$extra_env_assignment" || return $?
+
+    runtime_user="${env_args[0]#TARGET_USER=}"
+    current_user="$(doctor_fix_current_user 2>/dev/null || true)"
+    if [[ "$current_user" == "$runtime_user" ]]; then
+        "$env_bin" "${env_args[@]}" "$@"
+        return $?
+    fi
+
+    runuser_bin="$(doctor_fix_system_binary_path runuser 2>/dev/null || true)"
+    if [[ $EUID -eq 0 && -n "$runuser_bin" ]]; then
+        "$runuser_bin" -u "$runtime_user" -- "$env_bin" "${env_args[@]}" "$@"
+        return $?
+    fi
+
+    sudo_bin="$(doctor_fix_system_binary_path sudo 2>/dev/null || true)"
+    if [[ -n "$sudo_bin" ]]; then
+        "$sudo_bin" -n -u "$runtime_user" "$env_bin" "${env_args[@]}" "$@"
+        return $?
+    fi
+
+    doctor_fix_log WARN "Unable to run command as $runtime_user without passwordless sudo or root runuser"
+    return 1
+}
+
+doctor_fix_run_verified_installer_with_env() {
+    if [[ $# -lt 1 ]]; then
+        doctor_fix_log WARN "doctor_fix_run_verified_installer_with_env requires a tool name"
+        return 1
+    fi
+
+    local tool="$1"
+    local installer_env_assignment=""
+    shift
+    if [[ $# -gt 0 ]]; then
+        installer_env_assignment="$1"
+        shift
+    fi
+    local bash_bin=""
     local ms_arch=""
     ms_arch="$(uname -m 2>/dev/null || true)"
 
     if [[ "$tool" == "ms" ]] && [[ "$(uname -s 2>/dev/null)" == "Linux" ]] && [[ "$ms_arch" == "aarch64" || "$ms_arch" == "arm64" ]]; then
         local cargo_bin=""
-        local runtime_home=""
-        local runtime_path=""
 
         cargo_bin="$(doctor_fix_binary_path cargo 2>/dev/null || true)"
-        runtime_home="$(doctor_fix_runtime_home)"
-        runtime_path="$(doctor_fix_runtime_path 2>/dev/null || true)"
-        if [[ -z "$cargo_bin" || -z "$runtime_home" || -z "$runtime_path" ]]; then
+        if [[ -z "$cargo_bin" ]]; then
             doctor_fix_log WARN "meta_skill ARM64 Linux fallback requires cargo for the runtime home"
             return 1
         fi
 
         doctor_fix_log INFO "meta_skill: Linux ARM64 detected, rebuilding from source via cargo"
-        env HOME="$runtime_home" PATH="$runtime_path" "$cargo_bin" install --git https://github.com/Dicklesworthstone/meta_skill --force
+        doctor_fix_run_in_runtime_context "$installer_env_assignment" \
+            "$cargo_bin" install --git https://github.com/Dicklesworthstone/meta_skill --force
         return $?
     fi
 
@@ -816,7 +924,73 @@ doctor_fix_run_verified_installer() {
         return 1
     fi
 
-    fetch_and_run "$url" "$expected_sha256" "$tool" "$@"
+    bash_bin="$(acfs_security_required_binary_path bash)" || return $?
+
+    (
+        set -o pipefail
+        verify_checksum "$url" "$expected_sha256" "$tool" | \
+            doctor_fix_run_in_runtime_context "$installer_env_assignment" "$bash_bin" -s -- "$@"
+    )
+}
+
+doctor_fix_run_verified_installer() {
+    if [[ $# -lt 1 ]]; then
+        doctor_fix_log WARN "doctor_fix_run_verified_installer requires a tool name"
+        return 1
+    fi
+
+    local tool="$1"
+    shift
+
+    doctor_fix_run_verified_installer_with_env "$tool" "" "$@"
+}
+
+doctor_fix_prepare_target_installer_tmpdir() {
+    local tool="${1:-}"
+    local runtime_home=""
+    local tmpdir=""
+    local tmpdir_parent=""
+    local tmpdir_template=""
+
+    [[ -n "$tool" ]] || {
+        doctor_fix_log WARN "doctor_fix_prepare_target_installer_tmpdir requires a tool name"
+        return 1
+    }
+    case "$tool" in
+        .|..|*[!A-Za-z0-9._+-]*)
+            doctor_fix_log WARN "Invalid tool name for installer TMPDIR: $tool"
+            return 1
+            ;;
+    esac
+
+    runtime_home="$(doctor_fix_runtime_home 2>/dev/null || true)"
+    if [[ -z "$runtime_home" || "$runtime_home" != /* || "$runtime_home" == "/" ]]; then
+        doctor_fix_log WARN "Cannot prepare installer TMPDIR without a valid runtime home"
+        return 1
+    fi
+
+    tmpdir_parent="$runtime_home/.cache/acfs/installer-tmp"
+    tmpdir_template="$tmpdir_parent/${tool}.XXXXXX"
+    case "$tmpdir_template" in
+        *[[:space:]]*)
+            doctor_fix_log WARN "Cannot prepare installer TMPDIR template with whitespace: $tmpdir_template"
+            return 1
+            ;;
+    esac
+
+    doctor_fix_run_in_runtime_context "" mkdir -p "$tmpdir_parent" || {
+        doctor_fix_log WARN "Failed to prepare installer TMPDIR parent: $tmpdir_parent"
+        return 1
+    }
+
+    tmpdir="$(doctor_fix_run_in_runtime_context "" mktemp -d "$tmpdir_template" 2>/dev/null)" || tmpdir=""
+    if [[ -n "$tmpdir" ]]; then
+        printf '%s\n' "$tmpdir"
+        return 0
+    fi
+
+    doctor_fix_log WARN "Failed to create installer TMPDIR from template: $tmpdir_template"
+    return 1
 }
 
 # ============================================================
@@ -1339,6 +1513,49 @@ dispatch_fix() {
         stack.mcp_agent_mail*)
             fix_mcp_agent_mail "$check_id"
             ;;
+        stack.ntm)
+            fix_verified_install "$check_id" "ntm" "ntm"
+            ;;
+        stack.ubs|stack.ultimate_bug_scanner|stack.ultimate_bug_scanner.*)
+            fix_verified_install "$check_id" "ubs" "ubs" --easy-mode
+            ;;
+        stack.beads_viewer|stack.bv)
+            fix_verified_install "$check_id" "bv" "bv"
+            ;;
+        stack.beads_rust|stack.beads_rust.*)
+            fix_verified_install "$check_id" "br" "br"
+            ;;
+        stack.cass)
+            fix_verified_install_with_target_tmpdir "$check_id" "cass" "cass" --easy-mode --verify
+            ;;
+        stack.cm|stack.cm.*)
+            fix_verified_install "$check_id" "cm" "cm" --easy-mode --verify
+            ;;
+        stack.caam)
+            fix_verified_install "$check_id" "caam" "caam"
+            ;;
+        stack.ru)
+            fix_verified_install_with_env "$check_id" "ru" "ru" "RU_NON_INTERACTIVE=1"
+            ;;
+        stack.rch)
+            fix_verified_install "$check_id" "rch" "rch" --easy-mode
+            ;;
+        stack.dcg|stack.dcg.*)
+            local claude_fix_hint="Install Claude Code first, then re-run acfs doctor --fix"
+            if ! doctor_fix_binary_path dcg >/dev/null 2>&1; then
+                fix_verified_install "$check_id" "dcg" "dcg" --easy-mode || return $?
+            fi
+            if doctor_fix_binary_path claude >/dev/null 2>&1; then
+                fix_dcg_hook "$check_id"
+            else
+                if declare -f fix_for_module >/dev/null 2>&1; then
+                    claude_fix_hint="$(fix_for_module "agents.claude")"
+                fi
+                FIXES_MANUAL+=("$check_id|Install Claude Code before registering the DCG hook|$claude_fix_hint")
+                FIX_MANUAL=$((FIX_MANUAL + 1))
+                return 0
+            fi
+            ;;
 
         # Symlinks
         symlink.br)
@@ -1484,6 +1701,83 @@ fix_stack_install() {
     return 1
 }
 
+fix_verified_install_with_env() {
+    local check_id="$1"
+    local binary_name="$2"
+    local tool="$3"
+    local installer_env_assignment="$4"
+    shift 4
+    local args=("$@")
+    local args_display="${args[*]:-}"
+    local dry_run_env_display=""
+    local installed_path=""
+    local rollback_command=""
+
+    installed_path="$(doctor_fix_binary_path "$binary_name" 2>/dev/null || true)"
+    if [[ -n "$installed_path" ]]; then
+        if [[ "$binary_name" == "bv" && "$installed_path" == *"/google-cloud-sdk/"* ]]; then
+            installed_path=""
+        else
+            doctor_fix_log INFO "$binary_name already installed"
+            return 0
+        fi
+    fi
+
+    if [[ "$DOCTOR_FIX_DRY_RUN" == "true" ]]; then
+        [[ -n "$installer_env_assignment" ]] && dry_run_env_display="${installer_env_assignment} "
+        FIXES_DRY_RUN+=("fix.stack.$binary_name|Install $binary_name via verified installer|~/.local/bin/$binary_name|verified:$tool ${dry_run_env_display}${args_display}")
+        doctor_fix_log DRY "Install $binary_name via verified installer"
+        return 0
+    fi
+
+    if doctor_fix_run_verified_installer_with_env "$tool" "$installer_env_assignment" "${args[@]}" >/dev/null 2>&1; then
+        hash -r
+        installed_path="$(doctor_fix_binary_path "$binary_name" 2>/dev/null || true)"
+        if [[ -n "$installed_path" ]]; then
+            rollback_command="$(doctor_fix_build_remove_binary_rollback "$installed_path")"
+            if ! doctor_fix_record_change_or_rollback \
+                "$rollback_command" \
+                false \
+                "install" "Installed $binary_name via verified installer" \
+                "# Manual rollback required: remove $binary_name if undesired" \
+                false "info" "$(doctor_fix_files_json "$installed_path")" "[]" "[]"; then
+                hash -r
+                FIX_FAILED=$((FIX_FAILED + 1))
+                return 1
+            fi
+
+            doctor_fix_log INFO "Installed $binary_name via verified installer"
+            FIXES_APPLIED+=("fix.stack.$binary_name|Installed $binary_name via verified installer")
+            FIX_APPLIED=$((FIX_APPLIED + 1))
+            return 0
+        fi
+    fi
+
+    doctor_fix_log ERROR "Failed to install $binary_name via verified installer"
+    FIX_FAILED=$((FIX_FAILED + 1))
+    return 1
+}
+
+fix_verified_install_with_target_tmpdir() {
+    local check_id="$1"
+    local binary_name="$2"
+    local tool="$3"
+    shift 3
+    local installer_tmpdir=""
+
+    if [[ "$DOCTOR_FIX_DRY_RUN" == "true" ]]; then
+        installer_tmpdir="$(doctor_fix_runtime_home)/.cache/acfs/installer-tmp/${tool}.XXXXXX"
+    else
+        installer_tmpdir="$(doctor_fix_prepare_target_installer_tmpdir "$tool")" || {
+            doctor_fix_log ERROR "Failed to prepare installer TMPDIR for $binary_name"
+            FIX_FAILED=$((FIX_FAILED + 1))
+            return 1
+        }
+    fi
+
+    fix_verified_install_with_env "$check_id" "$binary_name" "$tool" "TMPDIR=$installer_tmpdir" "$@"
+}
+
 fix_verified_install() {
     local check_id="$1"
     local binary_name="$2"
@@ -1496,8 +1790,12 @@ fix_verified_install() {
 
     installed_path="$(doctor_fix_binary_path "$binary_name" 2>/dev/null || true)"
     if [[ -n "$installed_path" ]]; then
-        doctor_fix_log INFO "$binary_name already installed"
-        return 0
+        if [[ "$binary_name" == "bv" && "$installed_path" == *"/google-cloud-sdk/"* ]]; then
+            installed_path=""
+        else
+            doctor_fix_log INFO "$binary_name already installed"
+            return 0
+        fi
     fi
 
     if [[ "$DOCTOR_FIX_DRY_RUN" == "true" ]]; then

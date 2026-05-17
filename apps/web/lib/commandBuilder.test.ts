@@ -285,6 +285,14 @@ describe("buildHandoffRunbook", () => {
     });
     expect(runbook.recoveryCommands[0]?.command).toContain("ssh dev-user@<ipv4-target-host>");
     expect(runbook.recoveryCommands[0]?.command).not.toContain("ssh root@");
+    const rootFallbackRepair = runbook.recoveryCommands.find(
+      (command) => command.id === "repair-user-ssh-key-through-root",
+    );
+    expect(rootFallbackRepair).toMatchObject({
+      runLocation: "local",
+    });
+    expect(rootFallbackRepair?.command).toContain("ssh root@<ipv4-target-host>");
+    expect(rootFallbackRepair?.command).toContain("/home/dev-user/.ssh/authorized_keys");
     expect(runbook.targetHost.kind).toBe("ipv4");
     expect(runbook.targetHost.value).toBe("<ipv4-target-host>");
     expect(runbook.privacy.rawTargetHostIncluded).toBe(false);
@@ -324,6 +332,8 @@ describe("buildHandoffRunbook", () => {
     expect(markdown).toContain("Schema: `acfs.handoff-runbook.v1`");
     expect(markdown).toContain("Host kind: ipv6");
     expect(markdown).toContain("ssh root@<ipv6-target-host>");
+    expect(markdown).toContain("Copy the ACFS public key through the root fallback");
+    expect(markdown).toContain("/home/ubuntu/.ssh/authorized_keys");
     expect(markdown).toContain("acfs support-bundle");
     expect(markdown).not.toContain("2001:db8::42");
   });

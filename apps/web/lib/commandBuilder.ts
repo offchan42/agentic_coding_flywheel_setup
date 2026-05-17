@@ -1357,6 +1357,7 @@ export function buildHandoffRunbook(inputs: CommandBuilderInputs): HandoffRunboo
   const postInstallLoginCommand = `ssh -i ${SSH_KEY_PATH_UNIX} ${targetUsername}@${redactedHost}`;
   const postInstallLoginCommandWindows = `ssh -i ${SSH_KEY_PATH_WINDOWS} ${targetUsername}@${redactedHost}`;
   const userKeyRepairCommand = buildUserKeyRepairCommand(targetUsername, redactedHost);
+  const rootKeyRepairCommand = buildRootKeyRepairCommand(targetUsername, redactedHost);
 
   return {
     schema: HANDOFF_RUNBOOK_SCHEMA,
@@ -1406,6 +1407,12 @@ export function buildHandoffRunbook(inputs: CommandBuilderInputs): HandoffRunboo
         id: "repair-user-ssh-key",
         label: "Copy the ACFS public key into the configured user",
         command: userKeyRepairCommand,
+        runLocation: "local",
+      },
+      {
+        id: "repair-user-ssh-key-through-root",
+        label: "Copy the ACFS public key through the root fallback",
+        command: rootKeyRepairCommand,
         runLocation: "local",
       },
       {

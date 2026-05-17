@@ -4617,6 +4617,48 @@ ensure_base_deps() {
 # ============================================================
 # Phase 1: User normalization
 # ============================================================
+acfs_generate_random_password() {
+    local password=""
+    local digest=""
+
+    if command_exists openssl; then
+        password="$(openssl rand -base64 32 2>/dev/null || true)"
+        if [[ -n "$password" ]]; then
+            printf '%s\n' "$password"
+            return 0
+        fi
+    fi
+
+    if command_exists python3; then
+        password="$(python3 -c "import secrets; print(secrets.token_urlsafe(32))" 2>/dev/null || true)"
+        if [[ -n "$password" ]]; then
+            printf '%s\n' "$password"
+            return 0
+        fi
+    fi
+
+    if [[ -r /dev/urandom ]] && command_exists tr && command_exists head; then
+        # Under pipefail, tr exits with SIGPIPE after head reads enough bytes.
+        # The output is still valid, so force the pipeline status back to zero.
+        password="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32 || true)"
+        if [[ -n "$password" ]]; then
+            printf '%s\n' "$password"
+            return 0
+        fi
+    fi
+
+    if command_exists sha256sum; then
+        digest="$(date +%s%N | sha256sum 2>/dev/null || true)"
+        digest="${digest%% *}"
+        if [[ -n "$digest" ]]; then
+            printf '%s\n' "${digest:0:32}"
+            return 0
+        fi
+    fi
+
+    return 1
+}
+
 normalize_user() {
     set_phase "user_setup" "User Normalization"
     log_step "1/9" "Normalizing user account..."
@@ -4638,16 +4680,9 @@ normalize_user() {
     if ! id "$TARGET_USER" &>/dev/null; then
         log_detail "Creating user: $TARGET_USER"
 
-        # Generate random password (user will use SSH key, but password is needed for sudo in safe mode)
-        # Use openssl/python/urandom for robustness
+        # Generate random password (user will use SSH key, but password is needed for sudo in safe mode).
         local user_password=""
-        if command -v openssl &>/dev/null; then
-            user_password=$(openssl rand -base64 32)
-        elif command -v python3 &>/dev/null; then
-            user_password=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
-        else
-            user_password=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32)
-        fi
+        user_password="$(acfs_generate_random_password 2>/dev/null || true)"
 
         # We intentionally do NOT use try_step here because user creation can be
         # a recoverable race (e.g., another process creates the user between the

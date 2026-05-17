@@ -9291,6 +9291,9 @@ EOF
     run grep -F 'useradd -m -d "$TARGET_HOME" -s /bin/bash "$TARGET_USER"' "$installer"
     assert_success
 
+    run grep -F "LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32 || true" "$installer"
+    assert_success
+
     run grep -F '_acfs_lock_home="$(acfs_default_home_for_new_user "${TARGET_USER:-ubuntu}" 2>/dev/null || true)"' "$installer"
     assert_success
 

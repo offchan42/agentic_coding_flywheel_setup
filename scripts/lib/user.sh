@@ -229,27 +229,48 @@ unset _ACFS_USER_EXPLICIT_TARGET_HOME _ACFS_USER_CURRENT_USER _ACFS_USER_RESOLVE
 
 # Generate a random password robustly
 _generate_random_password() {
+    local password=""
+    local digest=""
+
     # Try openssl first (most standard)
     if command -v openssl &>/dev/null; then
-        openssl rand -base64 32
-        return 0
+        password="$(openssl rand -base64 32 2>/dev/null || true)"
+        if [[ -n "$password" ]]; then
+            printf '%s\n' "$password"
+            return 0
+        fi
     fi
 
     # Fallback to python3 (standard on Ubuntu)
     if command -v python3 &>/dev/null; then
-        python3 -c "import secrets; print(secrets.token_urlsafe(32))"
-        return 0
+        password="$(python3 -c "import secrets; print(secrets.token_urlsafe(32))" 2>/dev/null || true)"
+        if [[ -n "$password" ]]; then
+            printf '%s\n' "$password"
+            return 0
+        fi
     fi
 
     # Fallback to /dev/urandom (standard on Linux)
-    if [[ -r /dev/urandom ]]; then
+    if [[ -r /dev/urandom ]] && command -v tr &>/dev/null && command -v head &>/dev/null; then
         # Take first 32 alphanumeric chars
-        tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32
-        return 0
+        password="$(LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32 || true)"
+        if [[ -n "$password" ]]; then
+            printf '%s\n' "$password"
+            return 0
+        fi
     fi
 
     # Last resort: date hash (better than empty)
-    date +%s%N | sha256sum | head -c 32
+    if command -v sha256sum &>/dev/null; then
+        digest="$(date +%s%N | sha256sum 2>/dev/null || true)"
+        digest="${digest%% *}"
+        if [[ -n "$digest" ]]; then
+            printf '%s\n' "${digest:0:32}"
+            return 0
+        fi
+    fi
+
+    return 1
 }
 
 # Ensure target user exists
@@ -265,7 +286,7 @@ ensure_user() {
 
         # Generate random password (user will use SSH key)
         local passwd
-        passwd=$(_generate_random_password)
+        passwd="$(_generate_random_password 2>/dev/null || true)"
         
         if [[ -n "$passwd" ]]; then
             echo "$target:$passwd" | $SUDO chpasswd

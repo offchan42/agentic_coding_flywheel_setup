@@ -50,6 +50,38 @@ teardown() {
     assert_output --partial "-m -s /bin/bash -G sudo testuser"
 }
 
+@test "_generate_random_password: urandom fallback survives pipefail SIGPIPE" {
+    stub_command "openssl" "" 127
+    stub_command "python3" "" 127
+
+    run bash -c '
+        set -euo pipefail
+        source "$1/scripts/lib/logging.sh"
+        source "$1/scripts/lib/user.sh"
+        password="$(_generate_random_password)"
+        printf "len=%s\n" "${#password}"
+    ' _ "$PROJECT_ROOT"
+
+    assert_success
+    assert_output "len=32"
+}
+
+@test "ensure_user: password generator failure warns without aborting setup" {
+    stub_command "id" "" 1
+    spy_command "useradd"
+
+    _generate_random_password() {
+        return 1
+    }
+
+    run ensure_user
+    assert_success
+    assert_output --partial "Could not generate password for testuser"
+
+    run cat "$STUB_DIR/useradd.log"
+    assert_output --partial "-m -s /bin/bash -G sudo testuser"
+}
+
 @test "ensure_user: skips if exists" {
     # Mock id to succeed
     stub_command "id" "uid=1000(testuser)" 0

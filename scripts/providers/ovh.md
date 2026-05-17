@@ -128,7 +128,7 @@ Start with the root password login:
 ssh root@YOUR_IP_ADDRESS
 ```
 
-If OVH disables direct root login for your selected image, connect as `ubuntu` with the same VPS password and become root before installing:
+If OVH disables direct root login for your selected image and gives you an `ubuntu` admin account, connect as `ubuntu` and become root before installing. If `sudo -i` asks for a password, enter the `ubuntu` Linux account password. Do not enter your OVH account password or a different root password at the sudo prompt. If OVH only gave you a root password, use the provider console or root SSH path instead.
 
 ```bash
 ssh ubuntu@YOUR_IP_ADDRESS
@@ -140,7 +140,7 @@ sudo -i
 ## OVH-Specific Notes
 
 ### Default User
-Some OVH Ubuntu images default to `ubuntu` or disable direct root login. ACFS should still be run from a root shell, so use `sudo -i` before starting the installer when the first login lands on `ubuntu`.
+Some OVH Ubuntu images default to `ubuntu` or disable direct root login. ACFS should still be run from a root shell, so use `sudo -i` before starting the installer when the first login lands on `ubuntu`. A sudo password prompt belongs to the `ubuntu` Linux account, not to your OVH website account.
 
 ### Firewall
 OVH has a basic firewall in the control panel. For most setups, the default configuration works fine.

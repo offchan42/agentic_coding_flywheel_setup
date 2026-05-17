@@ -259,6 +259,30 @@ EOF
     assert_output --partial '\$bad'
 }
 
+@test "migrate_ssh_keys: tolerates unset HOME when current user is not target" {
+    local resolved_home
+
+    resolved_home="$(create_temp_dir)"
+    export TARGET_HOME="$resolved_home"
+    export ACFS_CI=false
+    unset HOME
+
+    user_resolve_current_user() {
+        printf '%s\n' "otheruser"
+    }
+
+    user_home_for_user() {
+        [[ "${1:-}" == "testuser" ]] || return 1
+        printf '%s\n' "$resolved_home"
+    }
+
+    run migrate_ssh_keys
+    assert_success
+    refute_output --partial "unbound variable"
+    assert_output --partial "No SSH keys found to migrate to testuser user"
+    assert_output --partial "If that cannot connect, use the root fallback:"
+}
+
 @test "user_home_for_user: rejects invalid fallback usernames" {
     export HOME="/"
 

@@ -350,6 +350,7 @@ migrate_ssh_keys() {
     current_user="$(user_resolve_current_user 2>/dev/null || true)"
     local target="$TARGET_USER"
     local target_home="${TARGET_HOME:-}"
+    local current_home="${HOME:-}"
 
     user_require_valid_target_user "$target"
 
@@ -372,8 +373,8 @@ migrate_ssh_keys() {
     local source_keys=""
 
     # Check for keys in current user's home
-    if [[ -f "$HOME/.ssh/authorized_keys" ]]; then
-        source_keys="$HOME/.ssh/authorized_keys"
+    if [[ -n "$current_home" && "$current_home" == /* && "$current_home" != "/" && -f "$current_home/.ssh/authorized_keys" ]]; then
+        source_keys="$current_home/.ssh/authorized_keys"
     fi
 
     # Check for root keys specifically

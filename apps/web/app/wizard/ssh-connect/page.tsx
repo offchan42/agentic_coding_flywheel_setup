@@ -298,7 +298,11 @@ export default function SSHConnectPage() {
         </h3>
         <p className="text-sm text-muted-foreground">
           Some providers disable root login. If you get &quot;Permission denied&quot; with
-          root, connect as ubuntu, enter the same VPS password, then open a root shell before continuing.
+          root, try the ubuntu account, then open a root shell before continuing.
+          If <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">sudo -i</code>{" "}
+          asks for a password, enter the ubuntu Linux account password, not your provider
+          website password or a different root password. If the provider only gave you a
+          root password, use the provider console or root SSH path instead.
         </p>
         <CommandCard
           command={sshCommandUbuntu}

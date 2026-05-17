@@ -130,7 +130,7 @@ export const STEP_HELP: Partial<Record<number, StepHelp>> = {
       {
         symptom: "Permission denied (publickey)",
         solution:
-          "This first connection step expects password login, so the SSH command should not include -i yet. Try ssh root@YOUR_IP. If the server still says publickey and never asks for a password, use your provider console or recreate the VPS with root password login enabled. If only root login is disabled, try ssh ubuntu@YOUR_IP with the same VPS password, run sudo -i, and continue only after the prompt ends with #.",
+          "This first connection step expects password login, so the SSH command should not include -i yet. Try ssh root@YOUR_IP. If the server still says publickey and never asks for a password, use your provider console or recreate the VPS with root password login enabled. If only root login is disabled, try ssh ubuntu@YOUR_IP, run sudo -i, and continue only after the prompt ends with #. A sudo password prompt wants the ubuntu Linux account password, not a provider website password or a different root password.",
       },
       {
         symptom: "Host key verification failed",

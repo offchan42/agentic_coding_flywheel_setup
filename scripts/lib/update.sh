@@ -1357,13 +1357,17 @@ update_run_verified_installer_with_shell_repair() {
 
 update_create_target_readable_temp_file() {
     local prefix="${1:-}"
+    local candidate=""
     local tmpdir_candidate=""
     local template=""
     local tmp_file=""
     local mktemp_bin=""
+    local mkdir_bin=""
     local chmod_bin=""
     local rm_bin=""
+    local -a candidate_dirs=()
     local -a templates=()
+    local duplicate_template="false"
 
     [[ -n "$prefix" ]] || {
         echo "update_create_target_readable_temp_file requires a prefix" >&2
@@ -1377,21 +1381,38 @@ update_create_target_readable_temp_file() {
     esac
 
     mktemp_bin="$(update_system_binary_path mktemp 2>/dev/null || true)"
+    mkdir_bin="$(update_system_binary_path mkdir 2>/dev/null || true)"
     chmod_bin="$(update_system_binary_path chmod 2>/dev/null || true)"
     rm_bin="$(update_system_binary_path rm 2>/dev/null || true)"
-    if [[ -z "$mktemp_bin" || -z "$chmod_bin" || -z "$rm_bin" ]]; then
+    if [[ -z "$mktemp_bin" || -z "$mkdir_bin" || -z "$chmod_bin" || -z "$rm_bin" ]]; then
         echo "Trusted temp-file helpers unavailable" >&2
         return 1
     fi
 
-    tmpdir_candidate="${TMPDIR:-/tmp}"
-    tmpdir_candidate="${tmpdir_candidate%/}"
-    if [[ -n "$tmpdir_candidate" && "$tmpdir_candidate" == /* && "$tmpdir_candidate" != "/" && "$tmpdir_candidate" != *[[:space:]]* ]]; then
+    candidate_dirs+=("${ACFS_UPDATE_TMPDIR:-}")
+    candidate_dirs+=("${TMPDIR:-}")
+    candidate_dirs+=("/data/tmp" "/var/tmp" "/tmp")
+
+    for candidate in "${candidate_dirs[@]}"; do
+        tmpdir_candidate="${candidate%/}"
+        [[ -n "$tmpdir_candidate" ]] || continue
+        [[ "$tmpdir_candidate" == /* ]] || continue
+        [[ "$tmpdir_candidate" != "/" ]] || continue
+        [[ "$tmpdir_candidate" != *[[:space:]]* ]] || continue
+
+        duplicate_template="false"
+        for template in "${templates[@]}"; do
+            if [[ "$template" == "$tmpdir_candidate/${prefix}.XXXXXX" ]]; then
+                duplicate_template="true"
+                break
+            fi
+        done
+        [[ "$duplicate_template" == "false" ]] || continue
+
+        "$mkdir_bin" -p "$tmpdir_candidate" 2>/dev/null || continue
+        [[ -d "$tmpdir_candidate" && -w "$tmpdir_candidate" ]] || continue
         templates+=("$tmpdir_candidate/${prefix}.XXXXXX")
-    fi
-    if [[ "$tmpdir_candidate" != "/tmp" ]]; then
-        templates+=("/tmp/${prefix}.XXXXXX")
-    fi
+    done
 
     for template in "${templates[@]}"; do
         tmp_file="$("$mktemp_bin" "$template" 2>/dev/null || true)"

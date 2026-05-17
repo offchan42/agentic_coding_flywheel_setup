@@ -11415,16 +11415,58 @@ SECURITY
 
     run cat "$path_file"
     assert_success
-    [[ "$output" == /tmp/acfs-update-test_tool.* ]]
+    [[ "$output" != "$private_tmp/"* ]]
+    [[ "$output" == */acfs-update-test_tool.* ]]
     run cat "$mode_file"
     assert_success
     assert_output "755"
+}
+
+@test "update verified installer temp script uses explicit update temp fallback" {
+    local path_file="$BATS_TEST_TMPDIR/verified-installer-fallback-path"
+    local private_tmp="$BATS_TEST_TMPDIR/private-tmp"
+    local shared_tmp="$BATS_TEST_TMPDIR/shared-tmp"
+    declare -gA KNOWN_INSTALLERS=([test_tool]="https://example.test/install.sh")
+    mkdir -p "$private_tmp" "$shared_tmp"
+    export TMPDIR="$private_tmp"
+    export ACFS_UPDATE_TMPDIR="$shared_tmp"
+
+    update_require_security() { return 0; }
+    get_checksum() { printf '%s\n' "abc123"; }
+    verify_checksum() {
+        printf '%s\n' '#!/usr/bin/env bash'
+        printf '%s\n' 'exit 0'
+    }
+    update_run_in_target_context() {
+        case "${2:-}" in
+            test)
+                [[ "${3:-}" == "-r" ]] || return 1
+                [[ "${4:-}" == "$shared_tmp/"* ]]
+                return $?
+                ;;
+            bash)
+                printf '%s\n' "${3:-}" > "$path_file"
+                [[ "${3:-}" == "$shared_tmp/"* ]]
+                return $?
+                ;;
+        esac
+        return 1
+    }
+
+    run update_run_verified_installer_with_env "test_tool" "" "--flag"
+    assert_success
+
+    run cat "$path_file"
+    assert_success
+    [[ "$output" == "$shared_tmp/acfs-update-test_tool."* ]]
 }
 
 @test "update special MCP Agent Mail installer uses target-readable temp helper" {
     local update="$PROJECT_ROOT/scripts/lib/update.sh"
 
     run grep -F 'tmp_install="$(update_create_target_readable_temp_file "acfs-install-am" 2>/dev/null)"' "$update"
+    assert_success
+    run grep -F 'candidate_dirs+=("/data/tmp" "/var/tmp" "/tmp")' "$update"
     assert_success
     run grep -F 'mktemp "${TMPDIR:-/tmp}/acfs-install-am.XXXXXX"' "$update"
     assert_failure

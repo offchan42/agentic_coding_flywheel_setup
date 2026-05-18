@@ -51,6 +51,41 @@ write_update_refresh_checksums_fixture() {
     done < <(update_required_checksum_tools)
 }
 
+@test "update required checksum tools cover the security installer registry" {
+    local actual=""
+    local expected=""
+
+    actual="$(update_required_checksum_tools | sort)"
+    expected="$(bash -c 'source "$1"; printf "%s\n" "${!KNOWN_INSTALLERS[@]}" | sort' _ "$PROJECT_ROOT/scripts/lib/security.sh")"
+
+    if [[ "$actual" != "$expected" ]]; then
+        printf 'update_required_checksum_tools is out of sync with KNOWN_INSTALLERS\n' >&2
+        printf 'Actual:\n%s\n' "$actual" >&2
+        printf 'Expected:\n%s\n' "$expected" >&2
+        return 1
+    fi
+}
+
+@test "checksums metadata validation rejects missing current stack installer" {
+    local checksum_file="$HOME/checksums-missing-rch.yaml"
+    local tool=""
+    local index=1
+    local tool_sha=""
+
+    printf 'installers:\n' > "$checksum_file"
+    while IFS= read -r tool; do
+        [[ "$tool" != "rch" ]] || continue
+        printf -v tool_sha '%064d' "$index"
+        printf '  %s:\n' "$tool" >> "$checksum_file"
+        printf '    url: "https://example.com/%s/install.sh"\n' "$tool" >> "$checksum_file"
+        printf '    sha256: "%s"\n' "$tool_sha" >> "$checksum_file"
+        index=$((index + 1))
+    done < <(update_required_checksum_tools)
+
+    run update_checksums_file_has_required_metadata "$checksum_file"
+    assert_failure
+}
+
 @test "get_version: detects bun" {
     mkdir -p "$HOME/.bun/bin"
     # Create stub script at location
@@ -4360,6 +4395,14 @@ EOF
 #!/usr/bin/env bash
 printf '128\n'
 EOF
+    cat > "$STUB_DIR/df" <<'EOF'
+#!/usr/bin/env bash
+if [[ "$*" == "--output=avail /" ]]; then
+    printf 'Avail\n10485760\n'
+else
+    exec /usr/bin/df "$@"
+fi
+EOF
     cat > "$STUB_DIR/awk" <<'EOF'
 #!/usr/bin/env bash
 case "${*: -1}" in
@@ -4367,7 +4410,7 @@ case "${*: -1}" in
     *) exec /usr/bin/awk "$@" ;;
 esac
 EOF
-    chmod +x "$STUB_DIR/id" "$STUB_DIR/getent" "$STUB_DIR/nproc" "$STUB_DIR/awk"
+    chmod +x "$STUB_DIR/id" "$STUB_DIR/getent" "$STUB_DIR/nproc" "$STUB_DIR/df" "$STUB_DIR/awk"
     printf '%s\n' "$STUB_DIR:/usr/bin:/bin"
 }
 

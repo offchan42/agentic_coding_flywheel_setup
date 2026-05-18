@@ -3209,7 +3209,9 @@ update_sync_known_installer_urls_from_checksums() {
 
 update_required_checksum_tools() {
     printf '%s\n' \
-        atuin bun bv caam cass claude cm dcg gemini_patch mcp_agent_mail ntm ohmyzsh ru rust slb ubs uv zoxide
+        apr asb atuin br brenner_bot bun bv caam casr cass claude cm csctf dcg dsr \
+        fsfs gemini_patch giil jfp mcp_agent_mail mdwb ms ntm nvm ohmyzsh opencode \
+        pcr pt rano rch ru rust s2p sbh slb srps tru ubs uv xf zoxide
 }
 
 update_checksums_file_has_required_metadata() {

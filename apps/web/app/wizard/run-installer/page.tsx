@@ -707,8 +707,9 @@ export default function RunInstallerPage() {
                 run <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">sudo -i</code> first. Wait for
                 the prompt to change to <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">root@vps:~#</code>{" "}
                 before running the command.
-                If sudo asks for a password, it wants the ubuntu Linux account password.
-                Do not enter a provider website password or a different root password there.
+                If sudo asks for a password, it wants the ubuntu Linux account password,
+                not the VPS root password or your provider website password.
+                If you only have the VPS root password, use root SSH or the provider console instead of retrying sudo.
                 <br /><br />
                 If it shows your regular computer name, you need to SSH in first!
               </GuideStep>

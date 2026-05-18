@@ -182,7 +182,7 @@ export const STEP_HELP: Partial<Record<number, StepHelp>> = {
       {
         symptom: "Permission denied errors during install",
         solution:
-          "Make sure you're running from a root shell (your prompt should show root@ and end with #). If you connected as ubuntu, run: sudo -i, then re-run the installer.",
+          "Make sure you're running from a root shell (your prompt should show root@ and end with #). If you connected as ubuntu, run: sudo -i. If sudo asks for a password, use the ubuntu Linux account password, not the VPS root password or provider website password. If you only have the VPS root password, use root SSH or the provider console instead. Re-run the installer only after the prompt ends with #.",
       },
     ],
     tips: [

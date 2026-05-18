@@ -943,6 +943,8 @@ test.describe("Step 8: Pre-Flight Check Page", () => {
     await expect(page.getByText(/If your provider disabled root login/i)).toBeVisible();
     await expect(page.locator("code").filter({ hasText: "ssh ubuntu@192.168.1.100" }).first()).toBeVisible();
     await expect(page.locator("code").filter({ hasText: "sudo -i" }).first()).toBeVisible();
+    await expect(page.getByText(/ubuntu Linux account password/i).first()).toBeVisible();
+    await expect(page.getByText(/provider console or root SSH path/i).first()).toBeVisible();
     await expect(page.getByText(/Continue only after your prompt ends with/i)).toBeVisible();
   });
 });
@@ -1073,6 +1075,8 @@ test.describe("Step 9: Run Installer Page", () => {
     expect(bodyText).toContain("Make sure you're in the root shell on your VPS");
     expect(bodyText).toContain("before you paste the installer");
     expect(bodyText).toMatch(/If it shows\s*ubuntu@vps:~\$,\s*run\s*sudo -i\s*first/);
+    expect(bodyText).toContain("not the VPS root password or your provider website password");
+    expect(bodyText).toContain("use root SSH or the provider console instead of retrying sudo");
     expect(bodyText).not.toContain("su - ubuntu");
     expect(bodyText).not.toContain("no password needed");
   });

@@ -33,6 +33,8 @@ const TROUBLESHOOTING = [
       "You're running this on your Windows computer, not on the VPS!",
       "First, connect to your VPS with: ssh root@YOUR_VPS_IP",
       "If root login is disabled, use: ssh ubuntu@YOUR_VPS_IP and then run: sudo -i",
+      "If sudo asks for a password, use the ubuntu Linux account password, not the VPS root password or provider website password",
+      "If you only have the VPS root password, use the provider console or root SSH path instead",
       "Wait until you see 'root@vps:~#' or similar",
       "THEN paste the preflight command",
       "The preflight command only works on the Linux VPS, not on Windows",
@@ -181,6 +183,9 @@ export default function PreflightCheckPage() {
             If your provider disabled root login, use{" "}
             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">ssh {ubuntuTarget}</code>,
             then run <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">sudo -i</code>.
+            If sudo asks for a password, use the ubuntu Linux account password,
+            not the VPS root password or provider website password. If you only have the VPS root password,
+            use the provider console or root SSH path instead.
             Continue only after your prompt ends with <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">#</code>.
           </p>
         </div>

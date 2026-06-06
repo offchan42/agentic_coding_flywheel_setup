@@ -583,7 +583,7 @@ amserve() {
     am_mcp_path="/api/"
   fi
 
-  am serve-http --host 127.0.0.1 --port 8765 --path "$am_mcp_path"
+  am serve-http --host "${ACFS_AGENT_MAIL_HOST:-127.0.0.1}" --port "${ACFS_AGENT_MAIL_PORT:-8765}" --path "$am_mcp_path"
 }
 
 # --- ACFS tool aliases (new tools) ---

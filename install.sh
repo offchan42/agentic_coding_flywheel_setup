@@ -42,6 +42,37 @@
 
 set -euo pipefail
 
+# ============================================================
+# Bash version guard (must run before any bash 4+ syntax below)
+# ------------------------------------------------------------
+# This installer uses bash 4+ features (associative arrays `declare -A`, etc.).
+# macOS ships bash 3.2 (2007) at /bin/bash, so `curl ... | bash` there would
+# otherwise die deep inside the script with a cryptic syntax error. Detect an
+# old interpreter early, re-exec under a newer bash if one is on PATH (e.g.
+# Homebrew's), and otherwise fail with an actionable message. Only bash 3.2-safe
+# syntax is permitted in this block.
+# ============================================================
+if [ -z "${ACFS_BASH_REEXEC:-}" ] && [ "${BASH_VERSINFO:-0}" -lt 4 ]; then
+    for _acfs_newer_bash in \
+        /opt/homebrew/bin/bash \
+        /usr/local/bin/bash \
+        "$(command -v bash 2>/dev/null || true)"; do
+        if [ -n "$_acfs_newer_bash" ] && [ -x "$_acfs_newer_bash" ]; then
+            # Probe the candidate's major version without running bash 4 syntax.
+            _acfs_cand_major="$("$_acfs_newer_bash" -c 'echo "${BASH_VERSINFO:-0}"' 2>/dev/null || echo 0)"
+            if [ "${_acfs_cand_major:-0}" -ge 4 ] && [ "$_acfs_newer_bash" != "$BASH" ]; then
+                export ACFS_BASH_REEXEC=1
+                exec "$_acfs_newer_bash" "$0" "$@"
+            fi
+        fi
+    done
+    printf '%s\n' "ERROR: ACFS requires bash 4.4+ (found ${BASH_VERSION:-unknown})." >&2
+    printf '%s\n' "ACFS officially supports Ubuntu 22.04+; on macOS install a newer bash first:" >&2
+    printf '%s\n' "    brew install bash" >&2
+    printf '%s\n' "    PATH=\"/opt/homebrew/bin:\$PATH\" bash install.sh" >&2
+    exit 1
+fi
+
 # Enable shell tracing when ACFS_DEBUG=true (matches the hint in our error messages)
 [[ "${ACFS_DEBUG:-}" == "true" ]] && set -x
 

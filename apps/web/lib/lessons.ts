@@ -514,6 +514,25 @@ export const LESSONS: Lesson[] = [
   },
 ];
 
+/**
+ * Slugs for lessons that double as always-available reference material.
+ *
+ * These appear in the Learning Hub "Quick Reference" section alongside
+ * standalone routes like `/learn/commands` and `/learn/glossary`. Visitors
+ * must be able to open them as reference at any time, so they are exempt from
+ * the sequential progress lock-gating that applies to the curriculum flow.
+ */
+export const REFERENCE_LESSON_SLUGS: ReadonlySet<string> = new Set([
+  "agent-commands",
+  "ntm-palette",
+]);
+
+/** Whether a lesson is an always-available reference lesson (never locked). */
+export function isReferenceLesson(lessonId: number): boolean {
+  const lesson = getLessonById(lessonId);
+  return lesson ? REFERENCE_LESSON_SLUGS.has(lesson.slug) : false;
+}
+
 /** Total number of lessons */
 export const TOTAL_LESSONS = LESSONS.length;
 

@@ -66,18 +66,22 @@ test.describe.serial("Learning Hub", () => {
     await expect(page.locator('div.fixed a[href="/learn/linux-basics"]')).toHaveCount(0);
   });
 
-  test("locked quick-reference lesson cards are not clickable before they unlock", async ({ page }) => {
+  test("reference quick-reference lesson cards are always reachable", async ({ page }) => {
     await page.goto("/learn");
     await page.waitForLoadState("networkidle");
 
-    await expect(page.locator('a[href="/learn/agent-commands"]')).toHaveCount(0);
-    await expect(page.locator('a[href="/learn/ntm-palette"]')).toHaveCount(0);
+    // Reference lessons (#294) behave like the standalone Command Reference and
+    // Glossary tiles: always linked, even for a brand-new visitor who has not
+    // completed any earlier lessons. The Quick Reference card plus the All
+    // Lessons grid card both render a link, so each href appears twice.
+    await expect(page.locator('a[href="/learn/agent-commands"]')).toHaveCount(2);
+    await expect(page.locator('a[href="/learn/ntm-palette"]')).toHaveCount(2);
     await expect(page.locator('a[href="/learn/commands"]')).toHaveCount(1);
     await expect(page.locator('a[href="/learn/glossary"]')).toHaveCount(1);
   });
 
-  test("locked lessons ignore the complete shortcut", async ({ page }) => {
-    await page.goto("/learn/agent-commands");
+  test("a still-locked lesson ignores the complete shortcut", async ({ page }) => {
+    await page.goto("/learn/git-basics");
     await page.waitForLoadState("networkidle");
 
     await expect(page.getByText("Lesson Locked")).toBeVisible();
@@ -87,6 +91,17 @@ test.describe.serial("Learning Hub", () => {
       localStorage.getItem("acfs-learning-hub-completed-lessons")
     );
     expect(storedLessons).toBeNull();
+  });
+
+  test("reference lessons show their content instead of a lock gate", async ({ page }) => {
+    await page.goto("/learn/agent-commands");
+    await page.waitForLoadState("networkidle");
+
+    // No lock gate, and the actual lesson content renders for a fresh visitor.
+    await expect(page.getByText("Lesson Locked")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Agent Commands", level: 1 })
+    ).toBeVisible();
   });
 
   test("lesson completion fails cleanly when browser storage rejects writes", async ({ page }) => {

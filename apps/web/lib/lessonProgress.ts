@@ -20,6 +20,7 @@ import {
   getLessonBySlug,
   getNextLesson,
   getPreviousLesson,
+  isReferenceLesson,
 } from "./lessons";
 
 // Re-export static data for backwards compatibility
@@ -31,6 +32,7 @@ export {
   getLessonBySlug,
   getNextLesson,
   getPreviousLesson,
+  isReferenceLesson,
 };
 
 /** localStorage key for storing completed lessons */
@@ -111,7 +113,7 @@ export function getCompletionPercentage(completedLessons: number[]): number {
   return Math.round((completedLessons.length / TOTAL_LESSONS) * 100);
 }
 
-export type LessonStatus = "completed" | "current" | "locked";
+export type LessonStatus = "completed" | "current" | "reference" | "locked";
 
 export function getLessonStatus(
   lessonId: number,
@@ -127,6 +129,12 @@ export function getLessonStatus(
 
   if (firstUncompleted?.id === lessonId) {
     return "current";
+  }
+
+  // Reference lessons (e.g. command palettes) are always reachable as
+  // reference material, so they are never locked behind sequential progress.
+  if (isReferenceLesson(lessonId)) {
+    return "reference";
   }
 
   return "locked";

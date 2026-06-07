@@ -107,7 +107,9 @@ function LessonCard({
             ? "border-[oklch(0.72_0.19_145/0.4)] bg-[oklch(0.72_0.19_145/0.08)]"
             : status === "current"
               ? "border-primary/50 bg-primary/10"
-              : "border-white/[0.06] bg-white/[0.02] opacity-60"
+              : status === "reference"
+                ? "border-white/[0.08] bg-white/[0.02]"
+                : "border-white/[0.06] bg-white/[0.02] opacity-60"
         } ${isAccessible ? "cursor-pointer hover:border-primary/60 hover:bg-white/[0.06]" : "cursor-not-allowed"} ${
           isSelected ? "ring-2 ring-primary ring-offset-2 ring-offset-black" : ""
         } backdrop-blur-xl`}
@@ -141,6 +143,10 @@ function LessonCard({
             >
               <Play className="h-3.5 w-3.5 text-primary-foreground" />
             </motion.div>
+          ) : status === "reference" ? (
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.06] backdrop-blur">
+              <BookOpen className="h-3.5 w-3.5 text-muted-foreground/70" />
+            </div>
           ) : (
             <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.06] backdrop-blur">
               <Lock className="h-3.5 w-3.5 text-muted-foreground/60" />

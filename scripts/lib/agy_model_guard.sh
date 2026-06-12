@@ -27,8 +27,13 @@ readonly AGY_REQUIRED_MODEL="Gemini 3.1 Pro (High)"
 
 # Forbidden-model families, as an extended-regex matched (case-insensitively)
 # against any text where agy might self-report or echo a model name.
+# Conservative backstop denylist of forbidden model families (case-insensitive).
+# Covers ANY Gemini Flash tier/version, any non-High Gemini Pro tier, all
+# Anthropic/Claude families, and GPT/GPT-OSS — i.e. everything that is NOT the
+# single allowed "Gemini 3.1 Pro (High)". This is a heuristic post-hoc check; the
+# authoritative guarantee is the explicit `--model` flag + agy_verify_model.
 # shellcheck disable=SC2034
-readonly AGY_FORBIDDEN_MODEL_REGEX='Gemini 3\.5 Flash|Gemini 3\.1 Pro \(Low\)|Claude (Sonnet|Opus)|GPT-?OSS'
+readonly AGY_FORBIDDEN_MODEL_REGEX='Gemini [0-9][0-9.]* Flash|Gemini [0-9][0-9.]* Pro \((Low|Medium)\)|Claude (Sonnet|Opus|Haiku)|GPT-?OSS|gpt-[0-9]'
 
 # Path to agy's persisted settings (holds the default "model").
 agy_settings_path() {
@@ -74,7 +79,7 @@ agy_verify_model() {
 # NOT reference any forbidden model family. Returns 0 if clean, 1 if a forbidden
 # model is named. Use on captured --print output as a post-hoc proof.
 agy_assert_output_model() {
-  local text="$1"
+  local text="${1:-}"
   if printf '%s' "$text" | grep -qiE "$AGY_FORBIDDEN_MODEL_REGEX"; then
     printf 'agy model guard FAIL: output references a forbidden model (require %q).\n' \
       "$AGY_REQUIRED_MODEL" >&2
@@ -96,17 +101,29 @@ agy_run() {
   command agy --model "$AGY_REQUIRED_MODEL" "$@"
 }
 
-# agy_run_checked [args...] — like agy_run but CAPTURES stdout, asserts the output
-# names no forbidden model, then echoes the captured output. Fail-closed: returns
+# agy_run_checked [args...] — like agy_run but CAPTURES output, asserts it names
+# no forbidden model, then echoes the captured output. Fail-closed: returns
 # nonzero if agy fails OR a forbidden model is detected. For scripts/CI/e2e.
+# Captures BOTH stdout and stderr so a model banner printed to stderr cannot
+# evade the assertion. The advisory agy_verify_model warning is emitted before
+# the capture so it does not pollute the returned output.
 agy_run_checked() {
+  if ! command -v agy >/dev/null 2>&1; then
+    printf 'agy model guard: `agy` not found on PATH.\n' >&2
+    return 127
+  fi
+  agy_verify_model || true   # warn-only; emitted to stderr, not captured below
   local out rc
-  out="$(agy_run "$@")"; rc=$?
+  out="$(command agy --model "$AGY_REQUIRED_MODEL" "$@" 2>&1)"; rc=$?
   if [[ $rc -ne 0 ]]; then
     printf '%s' "$out"
     return $rc
   fi
-  agy_assert_output_model "$out" || return 1
+  if ! agy_assert_output_model "$out"; then
+    # Surface what agy actually returned (to stderr) so the failure is debuggable.
+    printf 'agy model guard: rejected output was:\n%s\n' "$out" >&2
+    return 1
+  fi
   printf '%s' "$out"
   return 0
 }
@@ -133,9 +150,13 @@ _agy_guard_self_test() {
   local bad
   for bad in \
     "Running on Gemini 3.5 Flash (Medium)." \
+    "Using Gemini 2.5 Flash." \
     "I am Gemini 3.1 Pro (Low)." \
+    "I am Gemini 3.1 Pro (Medium)." \
     "Switched to Claude Sonnet 4.6 (Thinking)." \
     "Using Claude Opus 4.6." \
+    "I am Claude Haiku 4.5." \
+    "switched to gpt-4o" \
     "Model: GPT-OSS 120B (Medium)."; do
     if agy_assert_output_model "$bad" 2>/dev/null; then
       printf '  FAIL forbidden output NOT caught: %s\n' "$bad"; fails=$((fails + 1))

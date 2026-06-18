@@ -171,7 +171,7 @@ alias install='sudo apt install'
 alias search='apt search'
 
 # Update agent CLIs
-alias uca='(curl -fsSL https://claude.ai/install.sh | bash -s -- latest) && ("$HOME/.bun/bin/bun" install -g --trust @openai/codex@latest || "$HOME/.bun/bin/bun" install -g --trust @openai/codex) && "$HOME/.bun/bin/bun" install -g --trust @google/gemini-cli@latest && curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/misc_coding_agent_tips_and_scripts/main/fix-gemini-cli-ebadf-crash.sh | bash'
+alias uca='(curl -fsSL https://claude.ai/install.sh | bash -s -- latest) && ("$HOME/.bun/bin/bun" install -g --trust @openai/codex@latest || "$HOME/.bun/bin/bun" install -g --trust @openai/codex) && (curl -fsSL https://antigravity.google/cli/install.sh | bash) && ("$HOME/.bun/bin/bun" install -g --trust @google/gemini-cli@latest && curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/misc_coding_agent_tips_and_scripts/main/fix-gemini-cli-ebadf-crash.sh | bash)'
 
 # --- Custom functions ---
 mkcd() { mkdir -p "$1" && cd "$1" || return; }
@@ -544,7 +544,9 @@ fi
 alias cc='NODE_OPTIONS="--max-old-space-size=32768" ~/.local/bin/claude --dangerously-skip-permissions'
 alias cod='codex --dangerously-bypass-approvals-and-sandbox'
 
-# gmi: update gemini-cli via bun, apply patches, then launch (hardcoded bun path to avoid npm hijacking)
+# gmi: LEGACY — the Gemini CLI retired June 18, 2026 (no longer serves Pro/Ultra/free
+# tiers). Kept only to read/resume already-existing ~/.gemini/tmp history. Use `agy`
+# for all new work. Updates gemini-cli via bun, applies patches, then launches.
 gmi() {
   echo "▶ Updating gemini-cli to latest..."
   "$HOME/.bun/bin/bun" install -g --trust @google/gemini-cli@latest 2>&1 | tail -1
@@ -552,6 +554,14 @@ gmi() {
   curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/misc_coding_agent_tips_and_scripts/main/fix-gemini-cli-ebadf-crash.sh | bash
   echo "▶ Launching gemini..."
   "$HOME/.bun/bin/gemini" --yolo "$@"
+}
+
+# agy: Antigravity CLI (Google) — the successor to the retired gmi/Gemini CLI.
+# The agy binary self-updates in the background (no bun reinstall needed). Per the
+# agy_model_guard mandate the model is pinned to "Gemini 3.1 Pro (High)" — never a
+# Flash or non-High Pro tier. See ACFS scripts/lib/agy_model_guard.sh (source of truth).
+agy() {
+  command agy --model "Gemini 3.1 Pro (High)" --dangerously-skip-permissions "$@"
 }
 
 # bun project helpers (common)

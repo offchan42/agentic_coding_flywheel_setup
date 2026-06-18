@@ -10020,6 +10020,7 @@ test_doctor_agent_checks_use_target_context_under_root_home() {
     cat > "$TEST_INSTALLED_ACFS/zsh/acfs.zshrc" <<'EOF'
 alias cc='claude'
 alias cod='codex'
+agy() { command agy "$@"; }
 gmi() { gemini "$@"; }
 EOF
 
@@ -10055,6 +10056,7 @@ JSON
         ([.checks[] | select(.id == "shell.plugins.zsh_syntax_highlighting") | .status] | first) == "pass" and
         ([.checks[] | select(.id == "agent.alias.cc") | .status] | first) == "pass" and
         ([.checks[] | select(.id == "agent.alias.cod") | .status] | first) == "pass" and
+        ([.checks[] | select(.id == "agent.alias.agy") | .status] | first) == "pass" and
         ([.checks[] | select(.id == "agent.alias.gmi") | .status] | first) == "pass" and
         ([.checks[] | select(.id == "agent.path.claude") | .details] | first) == ("native (" + $native_path + ")") and
         ([.checks[] | select(.id == "stack.dcg") | .status] | first) == "pass" and
@@ -10224,6 +10226,7 @@ EOF
     cat > "$TEST_INSTALLED_ACFS/zsh/acfs.zshrc" <<'EOF'
 alias cc='claude'
 alias cod='codex'
+agy() { command agy "$@"; }
 gmi() { gemini "$@"; }
 EOF
     cat > "$TEST_TARGET_HOME/.claude/settings.json" <<'JSON'

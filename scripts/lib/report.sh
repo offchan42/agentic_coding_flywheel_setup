@@ -607,7 +607,7 @@ report_success() {
                 "  Next steps:" \
                 "    1. Log out and back in (or run: source ~/.zshrc)" \
                 "    2. Run: onboard" \
-                "    3. Start coding with: cc, cod, or gmi" \
+                "    3. Start coding with: cc, cod, or agy" \
                 "" \
                 "  Logs: ${ACFS_LOG_FILE}"
         else
@@ -622,7 +622,7 @@ report_success() {
             echo "  Next steps:"
             echo "    1. Log out and back in (or run: source ~/.zshrc)"
             echo "    2. Run: onboard"
-            echo "    3. Start coding with: cc, cod, or gmi"
+            echo "    3. Start coding with: cc, cod, or agy"
             echo ""
             echo "  Logs: ${ACFS_LOG_FILE}"
             echo ""

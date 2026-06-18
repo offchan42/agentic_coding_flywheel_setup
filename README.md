@@ -833,7 +833,7 @@ Example output:
 ║  Quick Commands:                                              ║
 ║    cc    → Claude Code (dangerous mode)                       ║
 ║    cod   → Codex CLI (dangerous mode)                         ║
-║    gmi   → Gemini CLI (yolo mode)                             ║
+║    agy   → Antigravity CLI (Gemini 3.1 Pro High)              ║
 ║    ntm   → Named Tmux Manager                                 ║
 ╚══════════════════════════════════════════════════════════════╝
 ```
@@ -864,7 +864,7 @@ Example output:
 ║  Agents                                                        ║
 ║    cc   → claude --dangerously-skip-permissions                ║
 ║    cod  → codex --dangerously-bypass-approvals-and-sandbox     ║
-║    gmi  → gemini --yolo                                        ║
+║    agy  → agy --model 'Gemini 3.1 Pro (High)'                  ║
 ║                                                                ║
 ║  Git                                                           ║
 ║    gs   → git status                                           ║
@@ -964,7 +964,7 @@ The [Command Reference](https://agent-flywheel.com/learn/commands) documents eve
 
 | Category | Commands |
 |----------|----------|
-| **Agents** | `cc`, `cod`, `gmi` |
+| **Agents** | `cc`, `cod`, `agy` |
 | **Search** | `rg`, `fd`, `sg`, `fzf` |
 | **Git** | `lg`, `gh`, `git-lfs` |
 | **System** | `z`, `bat`, `lsd`, `atuin`, `tmux` |
@@ -1230,7 +1230,8 @@ Benefits for agentic workflows:
 |-------|---------|-------------------|
 | **Claude Code** | `claude` | `cc` (dangerous mode) |
 | **Codex CLI** | `codex` | `cod` (dangerous mode) |
-| **Gemini CLI** | `gemini` | `gmi` (dangerous mode) |
+| **Antigravity CLI** | `agy` | `agy` (model-pinned, dangerous mode) |
+| **Gemini CLI** (legacy) | `gemini` | `gmi` (retired 2026-06-18; old-history reads only) |
 
 **Vibe Mode Aliases:**
 ```bash
@@ -1240,7 +1241,10 @@ alias cc='NODE_OPTIONS="--max-old-space-size=32768" claude --dangerously-skip-pe
 # Codex with bypass and dangerous filesystem access
 alias cod='codex --dangerously-bypass-approvals-and-sandbox'
 
-# Gemini with yolo mode
+# Antigravity CLI (successor to the retired Gemini CLI), model-pinned + auto-approve
+agy() { command agy --model "Gemini 3.1 Pro (High)" --dangerously-skip-permissions "$@"; }
+
+# Gemini CLI — LEGACY (retired 2026-06-18; kept only to read old ~/.gemini/tmp history)
 alias gmi='gemini --yolo'
 ```
 

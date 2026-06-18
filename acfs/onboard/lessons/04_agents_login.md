@@ -12,7 +12,9 @@ You have three powerful coding agents installed:
 |-------|---------|-------|---------|
 | Claude Code | `claude` | `cc` | Anthropic |
 | Codex CLI | `codex` | `cod` | OpenAI |
-| Gemini CLI | `gemini` | `gmi` | Google |
+| Antigravity CLI | `agy` | `agy` | Google |
+
+> The Gemini CLI (`gmi`) it replaced retired on 2026-06-18. `gmi` is still defined for reading old `~/.gemini/tmp` history, but use `agy` for all new work.
 
 ---
 
@@ -36,11 +38,13 @@ codex --dangerously-bypass-approvals-and-sandbox
 - Bypass safety prompts
 - No approval/sandbox checks
 
-### `gmi` (Gemini CLI)
+### `agy` (Antigravity CLI)
 ```bash
-gemini --yolo
+agy --model "Gemini 3.1 Pro (High)" --dangerously-skip-permissions
 ```
-- YOLO mode (no confirmations)
+- Model pinned to "Gemini 3.1 Pro (High)" (the only allowed model)
+- Auto-approves tool permissions (no confirmations)
+- Successor to the retired Gemini CLI; the binary self-updates in the background
 
 ---
 
@@ -131,7 +135,7 @@ cod "Hello! Please confirm you're working."
 ```
 
 ```bash
-gmi "Hello! Please confirm you're working."
+agy "Hello! Please confirm you're working."
 ```
 
 ---

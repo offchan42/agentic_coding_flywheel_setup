@@ -2074,7 +2074,16 @@ check_agents() {
         check "agent.alias.cod" "cod alias" "warn" "not in zshrc" "$alias_fix"
     fi
 
-    # gmi is defined as a shell function (not an alias) in acfs.zshrc
+    # agy is defined as a shell function (not an alias) in acfs.zshrc — the
+    # Antigravity CLI, successor to the retired gmi/Gemini CLI (the forward path).
+    if grep -q "^agy()" "$target_zshrc" 2>/dev/null || grep -q "^alias agy=" "$target_zshrc" 2>/dev/null; then
+        check "agent.alias.agy" "agy function" "pass"
+    else
+        check "agent.alias.agy" "agy function" "warn" "not in zshrc" "$alias_fix"
+    fi
+
+    # gmi is defined as a shell function (not an alias) in acfs.zshrc — LEGACY
+    # (Gemini CLI retired 2026-06-18; kept only for reading old ~/.gemini/tmp history)
     if grep -q "^gmi()" "$target_zshrc" 2>/dev/null || grep -q "^alias gmi=" "$target_zshrc" 2>/dev/null; then
         check "agent.alias.gmi" "gmi function" "pass"
     else

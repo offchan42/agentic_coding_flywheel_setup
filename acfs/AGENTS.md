@@ -433,7 +433,7 @@ rg -l -t rust 'unwrap\(' | xargs ast-grep run -l Rust -p '$X.unwrap()' --json
 |---------|-------------|
 | `cc` | Claude Code (Anthropic) - start interactive session |
 | `cod` | Codex CLI (OpenAI) - start interactive session |
-| `gmi` | Gemini CLI (Google) - start interactive session |
+| `agy` | Antigravity CLI (Google) - start interactive session (successor to the retired `gmi`/Gemini CLI; pinned to "Gemini 3.1 Pro (High)") |
 
 ### Session Management (NTM)
 

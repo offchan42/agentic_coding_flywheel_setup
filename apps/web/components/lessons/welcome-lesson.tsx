@@ -153,7 +153,7 @@ export function WelcomeLesson() {
             },
             {
               title: "Agent commands",
-              description: "Talking to Claude, Codex, and Gemini",
+              description: "Talking to Claude, Codex, and Antigravity",
             },
             {
               title: "NTM mastery",

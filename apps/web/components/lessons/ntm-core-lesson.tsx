@@ -109,8 +109,8 @@ export function NtmCoreLesson() {
                 color="from-emerald-500 to-teal-500"
               />
               <SessionComponent
-                label="1 Gemini pane"
-                color="from-blue-500 to-indigo-500"
+                label="1 Antigravity pane"
+                color="from-blue-500 to-purple-500"
               />
               <SessionComponent
                 label='Session: "myproject"'
@@ -1451,9 +1451,9 @@ function AgentRatioCard() {
         />
         <RatioItem
           count="1"
-          name="Gemini"
-          reason="Different perspective, good for docs"
-          color="from-blue-500 to-indigo-500"
+          name="Antigravity"
+          reason="Different perspective (Gemini 3.1 Pro), good for docs"
+          color="from-blue-500 to-purple-500"
         />
       </div>
     </motion.div>

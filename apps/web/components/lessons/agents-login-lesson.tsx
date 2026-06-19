@@ -1234,7 +1234,7 @@ function InteractiveAgentComparison() {
                     ? "Claude"
                     : agentKey === "codex"
                       ? "Codex"
-                      : "Gemini"}
+                      : "Antigravity"}
                 </text>
               </g>
             );

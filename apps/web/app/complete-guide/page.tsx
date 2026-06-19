@@ -879,7 +879,7 @@ When you're not sure what to do next, use the bv tool mentioned in AGENTS.md to 
             </SubSection>
 
             <SubSection title="Atlas Notes as a Live Swarm">
-              <P>For a small project like Atlas Notes, a first swarm might look like this: <strong>Claude agent A</strong> claims br-101 and implements upload + parse handling. <strong>Codex agent B</strong> claims br-102 and works on the search path plus tests. <strong>Claude agent C</strong> claims br-103 and builds the admin failure dashboard. <strong>Gemini agent D</strong> stays flexible: reviews recent work, checks docs, and fills in test or UX gaps where needed. All four share the same codebase, read the same AGENTS.md, coordinate via Agent Mail, and use bv whenever they are uncertain about what unlocks the most progress next. That is what makes the swarm feel like one system rather than four unrelated terminals.</P>
+              <P>For a small project like Atlas Notes, a first swarm might look like this: <strong>Claude agent A</strong> claims br-101 and implements upload + parse handling. <strong>Codex agent B</strong> claims br-102 and works on the search path plus tests. <strong>Claude agent C</strong> claims br-103 and builds the admin failure dashboard. <strong>Antigravity agent D</strong> stays flexible: reviews recent work, checks docs, and fills in test or UX gaps where needed. All four share the same codebase, read the same AGENTS.md, coordinate via Agent Mail, and use bv whenever they are uncertain about what unlocks the most progress next. That is what makes the swarm feel like one system rather than four unrelated terminals.</P>
             </SubSection>
 
             <SubSection title="Account Switching">

@@ -968,6 +968,36 @@ modules:
         target_bin="${ACFS_BIN_DIR:-$HOME/.local/bin}"
         "$target_bin/gemini" --version || "$target_bin/gemini" --help
 
+  - id: agents.antigravity
+    description: Antigravity CLI (agy) — Google, successor to the retired Gemini CLI
+    category: agents
+    phase: 7
+    run_as: target_user
+    optional: false
+    enabled_by_default: true
+    tags: [recommended, agent]
+    dependencies:
+      - base.system
+    installed_check:
+      run_as: target_user
+      command: 'test -x "${ACFS_BIN_DIR:-$HOME/.local/bin}/agy" || test -x "$HOME/.local/bin/agy"'
+    # agy is a standalone self-updating native binary (no bun/node runtime needed).
+    # The installer is supply-chain-verified via the external-installer checksum store
+    # (checksums.yaml -> antigravity); it SHA512-verifies the downloaded binary itself,
+    # drops agy into ~/.local/bin, and is idempotent (no-op if already present).
+    verified_installer:
+      tool: antigravity
+      runner: bash
+    install: []
+    verify:
+      - |
+        target_bin="${ACFS_BIN_DIR:-$HOME/.local/bin}"
+        "$target_bin/agy" --version || "$target_bin/agy" --help
+    notes:
+      - "Pin the model to 'Gemini 3.1 Pro (High)' on every invocation (see scripts/lib/agy_model_guard.sh)"
+      - "Auth is Google OAuth (a human step); the agy() shell function in acfs.zshrc launches it model-pinned"
+      - "Legacy gmi/Gemini CLI (agents.gemini) is kept only for reading old ~/.gemini/tmp history"
+
   - id: agents.opencode
     description: OpenCode (multi-provider agent harness)
     category: agents

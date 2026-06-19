@@ -2,6 +2,10 @@
 # Run: ./scripts/lib/security.sh --update-checksums
 
 installers:
+  antigravity:
+    url: "https://antigravity.google/cli/install.sh"
+    sha256: "ee1ea43ce4e9e56356c4ab6dad907ef357ae4bdfcaadb682735909fb57c9c640"
+
   apr:
     url: "https://raw.githubusercontent.com/Dicklesworthstone/automated_plan_reviser_pro/main/install.sh"
     sha256: "eb4626ccca58be2a9278c893618b13655c6f0805b7ee98f6a3127cf5f64a6eba"

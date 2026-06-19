@@ -336,6 +336,7 @@ declare -a MANIFEST_CHECKS=(
     "agents.claude	Claude Code	target_bin=\"\${ACFS_BIN_DIR:-\$HOME/.local/bin}\"\\n\"\$target_bin/claude\" --version || \"\$target_bin/claude\" --help	required	target_user"
     "agents.codex	OpenAI Codex CLI	target_bin=\"\${ACFS_BIN_DIR:-\$HOME/.local/bin}\"\\n\"\$target_bin/codex\" --version || \"\$target_bin/codex\" --help	required	target_user"
     "agents.gemini	Google Gemini CLI	target_bin=\"\${ACFS_BIN_DIR:-\$HOME/.local/bin}\"\\n\"\$target_bin/gemini\" --version || \"\$target_bin/gemini\" --help	required	target_user"
+    "agents.antigravity	Antigravity CLI (agy) — Google, successor to the retired Gemini CLI	target_bin=\"\${ACFS_BIN_DIR:-\$HOME/.local/bin}\"\\n\"\$target_bin/agy\" --version || \"\$target_bin/agy\" --help	required	target_user"
     "agents.opencode	OpenCode (multi-provider agent harness)	opencode --version || opencode --help	optional	target_user"
     "tools.vault	HashiCorp Vault CLI	vault --version	optional	root"
     "db.postgres18.1	PostgreSQL 18	psql --version	optional	root"

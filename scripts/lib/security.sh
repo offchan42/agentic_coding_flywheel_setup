@@ -333,6 +333,7 @@ fi
 # Format: URL|SHA256 (computed from the install script content)
 # These are reference checksums - actual scripts may change
 declare -gA KNOWN_INSTALLERS=(
+    [antigravity]="https://antigravity.google/cli/install.sh"
     [bun]="https://bun.sh/install"
     [claude]="https://claude.ai/install.sh"
     [uv]="https://astral.sh/uv/install.sh"

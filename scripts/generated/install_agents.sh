@@ -289,7 +289,7 @@ acfs_security_init() {
 }
 
 # Category: agents
-# Modules: 4
+# Modules: 5
 
 # Claude Code
 install_agents_claude() {
@@ -1061,6 +1061,86 @@ INSTALL_AGENTS_GEMINI
     log_success "agents.gemini installed"
 }
 
+# Antigravity CLI (agy) — Google, successor to the retired Gemini CLI
+install_agents_antigravity() {
+    local module_id="agents.antigravity"
+    acfs_require_contract "module:${module_id}" || return 1
+    log_step "Installing agents.antigravity"
+
+    if [[ "${DRY_RUN:-false}" = "true" ]]; then
+        log_info "dry-run: verified installer: agents.antigravity"
+    else
+        if ! {
+            # Try security-verified install (no unverified fallback; fail closed)
+            local install_success=false
+
+            if acfs_security_init; then
+                local known_installers_decl=""
+                # Check if KNOWN_INSTALLERS is available as an associative array (declare -A)
+                known_installers_decl="$(declare -p KNOWN_INSTALLERS 2>/dev/null || true)"
+                if [[ "$known_installers_decl" == declare\ -A* ]]; then
+                    local tool="antigravity"
+                    local url=""
+                    local expected_sha256=""
+
+                    # Safe access with explicit empty default
+                    url="${KNOWN_INSTALLERS[$tool]:-}"
+                    if ! expected_sha256="$(get_checksum "$tool")"; then
+                        log_error "agents.antigravity: get_checksum failed for tool '$tool'"
+                        expected_sha256=""
+                    fi
+
+                    if [[ -n "$url" ]] && [[ -n "$expected_sha256" ]]; then
+                        if verify_checksum "$url" "$expected_sha256" "$tool" | run_as_target_runner 'bash' '-s'; then
+                            install_success=true
+                        else
+                            log_error "agents.antigravity: verify_checksum or installer execution failed"
+                        fi
+                    else
+                        if [[ -z "$url" ]]; then
+                            log_error "agents.antigravity: KNOWN_INSTALLERS[$tool] not found"
+                        fi
+                        if [[ -z "$expected_sha256" ]]; then
+                            log_error "agents.antigravity: checksum for '$tool' not found"
+                        fi
+                    fi
+                else
+                    log_error "agents.antigravity: KNOWN_INSTALLERS array not available"
+                fi
+            else
+                log_error "agents.antigravity: acfs_security_init failed - check security.sh and checksums.yaml"
+            fi
+
+            # Verified install is required - no fallback
+            if [[ "$install_success" = "true" ]]; then
+                true
+            else
+                log_error "Verified install failed for agents.antigravity"
+                false
+            fi
+        }; then
+            log_error "agents.antigravity: verified installer failed"
+            return 1
+        fi
+    fi
+
+    # Verify
+    if [[ "${DRY_RUN:-false}" = "true" ]]; then
+        log_info "dry-run: verify: \"\$target_bin/agy\" --version || \"\$target_bin/agy\" --help (target_user)"
+    else
+        if ! run_as_target_shell <<'INSTALL_AGENTS_ANTIGRAVITY'
+target_bin="${ACFS_BIN_DIR:-$HOME/.local/bin}"
+"$target_bin/agy" --version || "$target_bin/agy" --help
+INSTALL_AGENTS_ANTIGRAVITY
+        then
+            log_error "agents.antigravity: verify failed: \"\$target_bin/agy\" --version || \"\$target_bin/agy\" --help"
+            return 1
+        fi
+    fi
+
+    log_success "agents.antigravity installed"
+}
+
 # OpenCode (multi-provider agent harness)
 install_agents_opencode() {
     local module_id="agents.opencode"
@@ -1156,6 +1236,7 @@ install_agents() {
     install_agents_claude
     install_agents_codex
     install_agents_gemini
+    install_agents_antigravity
     install_agents_opencode
 }
 

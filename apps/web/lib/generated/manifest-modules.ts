@@ -32,8 +32,8 @@ export interface ManifestProvenanceMetadata {
 
 export const manifestProvenance = {
   acfsVersion: "0.7.0",
-  manifestSha256: "9c7942e59373987ab7346d88d78160a4b8fff97b00f441461bba305306860503",
-  checksumsYamlSha256: "10de80f66c7019daaa24c8e82a4a7a9e1fd72cbb5c781047f1015146fcadbc07",
+  manifestSha256: "4f1825a13aa0cf7219d0813530ec82b5466f943e79db4378f910904f199d8968",
+  checksumsYamlSha256: "7792ddb77df1ee910ac0233ffea2302afb8f217532766fa38014f5a16e720fad",
 } as const satisfies ManifestProvenanceMetadata;
 
 export const manifestModules: ManifestModuleMetadata[] = [
@@ -342,6 +342,21 @@ export const manifestModules: ManifestModuleMetadata[] = [
     dependencies: [
       "lang.bun",
       "lang.nvm",
+    ],
+    tags: [
+      "recommended",
+      "agent",
+    ],
+    enabledByDefault: true,
+    optional: false,
+  },
+  {
+    id: "agents.antigravity",
+    description: "Antigravity CLI (agy) — Google, successor to the retired Gemini CLI",
+    category: "agents",
+    phase: 7,
+    dependencies: [
+      "base.system",
     ],
     tags: [
       "recommended",

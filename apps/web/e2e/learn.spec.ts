@@ -204,6 +204,7 @@ test.describe.serial("Learning Hub", () => {
 
     await expect(page.locator('a[href="/learn/tools/claude-code"]').first()).toBeVisible();
     await expect(page.locator('a[href="/learn/tools/codex-cli"]').first()).toBeVisible();
+    await expect(page.locator('a[href="/learn/tools/antigravity-cli"]').first()).toBeVisible();
     await expect(page.locator('a[href="/learn/tools/gemini-cli"]').first()).toBeVisible();
     await expect(page.locator('a[href="/learn/tools/ntm"]').first()).toBeVisible();
     await expect(page.locator('a[href="/learn/tools/beads"]').first()).toBeVisible();

@@ -67,14 +67,22 @@ export function AgentsLoginLesson() {
             delay={0.2}
           />
           <AgentInfoCard
-            name="Gemini CLI"
-            command="gemini"
-            alias="gmi"
+            name="Antigravity CLI"
+            command="agy"
+            alias="agy"
             company="Google"
-            gradient="from-blue-500 to-indigo-500"
+            gradient="from-blue-500 to-purple-500"
             delay={0.3}
           />
         </div>
+
+        <Paragraph>
+          The Antigravity CLI (<Highlight>agy</Highlight>) is pinned to Gemini
+          3.1 Pro (High). It replaced the Gemini CLI (<Highlight>gmi</Highlight>),
+          which retired 2026-06-18 — <Highlight>gmi</Highlight> still works for
+          reading old <Highlight>~/.gemini/tmp</Highlight> history, but use{" "}
+          <Highlight>agy</Highlight> for all new work.
+        </Paragraph>
 
         <div className="mt-8">
           <InteractiveAgentComparison />
@@ -120,13 +128,25 @@ export function AgentsLoginLesson() {
           />
 
           <AliasCard
-            alias="gmi"
-            name="Gemini CLI"
-            code="gemini --yolo"
-            features={["YOLO mode (no confirmations)"]}
-            gradient="from-blue-500/20 to-indigo-500/20"
+            alias="agy"
+            name="Antigravity CLI"
+            code={`agy --model "Gemini 3.1 Pro (High)" \\
+  --dangerously-skip-permissions`}
+            features={[
+              'Model pinned to "Gemini 3.1 Pro (High)"',
+              "Auto-approves tool permissions (no confirmations)",
+              "Successor to the retired Gemini CLI",
+            ]}
+            gradient="from-blue-500/20 to-purple-500/20"
           />
         </div>
+
+        <Paragraph>
+          Legacy: <Highlight>gmi</Highlight> (
+          <Highlight>gemini --yolo</Highlight>) is still defined for reading old
+          sessions, but the Gemini CLI it launched retired 2026-06-18 — reach for{" "}
+          <Highlight>agy</Highlight> instead.
+        </Paragraph>
       </Section>
 
       <Divider />
@@ -154,11 +174,19 @@ export function AgentsLoginLesson() {
           {/* OpenAI Warning */}
           <OpenAIAccountWarning />
 
-          {/* Gemini Login */}
+          {/* Antigravity Login */}
           <LoginStep
-            agent="Gemini CLI"
+            agent="Antigravity CLI"
+            command="agy"
+            description="Run agy once and follow the prompts to authenticate with your Google account. The model is pinned to Gemini 3.1 Pro (High)."
+            gradient="from-blue-500/10 to-purple-500/10"
+          />
+
+          {/* Gemini Login (legacy) */}
+          <LoginStep
+            agent="Gemini CLI (legacy)"
             command='export GEMINI_API_KEY="your-gemini-api-key"'
-            description="Recommended on a headless VPS. Put the key in ~/.gemini/.env or your shell config, then run gemini."
+            description="Legacy path for the retired gemini CLI (kept for old ~/.gemini/tmp history). Put the key in ~/.gemini/.env or your shell config, then run gemini."
             gradient="from-blue-500/10 to-indigo-500/10"
           />
         </div>
@@ -212,7 +240,7 @@ caam backup gemini my-main-account`}
         <div className="mt-6 space-y-4">
           <CodeBlock code={`cc "Hello! Please confirm you're working."`} />
           <CodeBlock code={`cod "Hello! Please confirm you're working."`} />
-          <CodeBlock code={`gmi "Hello! Please confirm you're working."`} />
+          <CodeBlock code={`agy "Hello! Please confirm you're working."`} />
         </div>
       </Section>
 
@@ -259,7 +287,7 @@ caam backup gemini my-main-account`}
         <div className="mt-6">
           <CodeBlock
             code={`# Check which agents are installed
-$ which claude codex gemini
+$ which claude codex agy
 
 # Check your agent credential backups
 $ caam ls
@@ -568,7 +596,7 @@ const SCENARIOS: Scenario[] = [
       },
       gemini: {
         lines: [
-          { text: '$ gemini "Create SSH keys for GitHub"', type: "command", delay: 0 },
+          { text: '$ agy "Create SSH keys for GitHub"', type: "command", delay: 0 },
           { text: "Let me explain SSH key cryptography...", type: "info", delay: 500 },
           { text: "Ed25519 uses Edwards-curve Digital Sig...", type: "info", delay: 1000 },
           { text: '$ ssh-keygen -t ed25519 -C "user@dev"', type: "command", delay: 1600 },
@@ -617,7 +645,7 @@ const SCENARIOS: Scenario[] = [
       },
       gemini: {
         lines: [
-          { text: '$ gemini "Help me set up API auth"', type: "command", delay: 0 },
+          { text: '$ agy "Help me set up API auth"', type: "command", delay: 0 },
           { text: "There are several auth approaches:", type: "info", delay: 500 },
           { text: "1. Environment variables (recommended)", type: "info", delay: 900 },
           { text: "2. Config files (~/.config/...)", type: "info", delay: 1200 },
@@ -667,11 +695,11 @@ const SCENARIOS: Scenario[] = [
       },
       gemini: {
         lines: [
-          { text: '$ export GEMINI_API_KEY="AIza..."', type: "command", delay: 0 },
-          { text: "$ gemini", type: "command", delay: 500 },
-          { text: "Loaded auth from GEMINI_API_KEY", type: "info", delay: 900 },
-          { text: "Welcome to Gemini CLI!", type: "info", delay: 1300 },
-          { text: "Using Gemini API key for headless mode.", type: "success", delay: 1800 },
+          { text: "$ agy", type: "command", delay: 0 },
+          { text: "Opening browser for Google sign-in...", type: "info", delay: 500 },
+          { text: "Visit: https://accounts.google.com/o/oauth2/...", type: "output", delay: 900 },
+          { text: "Welcome to Antigravity CLI!", type: "info", delay: 1300 },
+          { text: "Model pinned: Gemini 3.1 Pro (High)", type: "success", delay: 1800 },
           { text: "Ready to chat as user@gmail.com", type: "success", delay: 2400 },
         ],
         result: "success",
@@ -758,12 +786,12 @@ const SCENARIOS: Scenario[] = [
       },
       gemini: {
         lines: [
-          { text: '$ gmi "Update the documentation"', type: "command", delay: 0 },
+          { text: '$ agy "Update the documentation"', type: "command", delay: 0 },
           { text: "Processing request...", type: "info", delay: 400 },
           { text: "Error: Quota exceeded for gemini-pro", type: "error", delay: 1000 },
           { text: "$ caam activate gemini work-acct", type: "command", delay: 1500 },
           { text: "Switched to work-acct", type: "success", delay: 2000 },
-          { text: '$ gmi "Update the documentation"', type: "command", delay: 2400 },
+          { text: '$ agy "Update the documentation"', type: "command", delay: 2400 },
           { text: "Documentation updated across 8 files.", type: "success", delay: 3400 },
         ],
         result: "success",
@@ -804,7 +832,7 @@ const SCENARIOS: Scenario[] = [
       },
       gemini: {
         lines: [
-          { text: '$ gmi "Document the payments module"', type: "command", delay: 0 },
+          { text: '$ agy "Document the payments module"', type: "command", delay: 0 },
           { text: "Analyzing module public API...", type: "info", delay: 500 },
           { text: "Generating JSDoc annotations...", type: "info", delay: 1100 },
           { text: "Created: docs/payments-guide.md", type: "output", delay: 1800 },
@@ -1323,7 +1351,7 @@ function AgentTerminalPanel({
       ? "Claude Code"
       : agentKey === "codex"
         ? "Codex CLI"
-        : "Gemini CLI";
+        : "Antigravity CLI";
 
   return (
     <div className="bg-black/40 flex flex-col">

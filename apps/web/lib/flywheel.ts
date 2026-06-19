@@ -451,9 +451,9 @@ const _flywheelTools: FlywheelTool[] = [
     color: "from-sky-400 to-blue-500",
     tagline: "Multi-agent tmux command center",
     description:
-      "Orchestrate multiple AI coding agents across tmux sessions. Spawn Claude, Codex, and Gemini agents in named panes. 80+ commands for session management, prompt broadcasting, file conflict detection, and context rotation. Persistent sessions survive SSH disconnects.",
+      "Orchestrate multiple AI coding agents across tmux sessions. Spawn Claude, Codex, and Antigravity agents in named panes. 80+ commands for session management, prompt broadcasting, file conflict detection, and context rotation. Persistent sessions survive SSH disconnects.",
     deepDescription:
-      "NTM transforms tmux into a multi-agent command center with 80+ commands. Spawn agents with type classification (cc/cod/gmi), broadcast prompts with filtering, and use the command palette TUI for quick actions. Features context window monitoring with automatic compaction recovery, checkpoints for session state management, agent profiles/personas for specialized roles, and deep integrations with Agent Mail (file reservations, messaging), CASS (session search), and beads (--robot-bead-* commands). Robot mode (--robot-*) provides JSON output for automation.",
+      "NTM transforms tmux into a multi-agent command center with 80+ commands. Spawn agents with type classification (cc/cod/agy), broadcast prompts with filtering, and use the command palette TUI for quick actions. Features context window monitoring with automatic compaction recovery, checkpoints for session state management, agent profiles/personas for specialized roles, and deep integrations with Agent Mail (file reservations, messaging), CASS (session search), and beads (--robot-bead-* commands). Robot mode (--robot-*) provides JSON output for automation.",
     connectsTo: ["slb", "mail", "cass", "caam", "ru", "srps", "bv", "br", "dcg"],
     connectionDescriptions: {
       slb: "Routes dangerous commands through SLB safety checks",
@@ -469,7 +469,7 @@ const _flywheelTools: FlywheelTool[] = [
     stars: 16,
     features: [
       "80+ commands: spawn, send, dashboard, palette, checkpoint, health, and more",
-      "Agent types: Claude (cc), Codex (cod), Gemini (gmi) with named panes",
+      "Agent types: Claude (cc), Codex (cod), Antigravity (agy) with named panes",
       "Context rotation: monitors usage, warns at 80%, auto-compaction recovery",
       "Command palette TUI with fuzzy search, Catppuccin themes, pinned commands",
       "Robot mode: --robot-status, --robot-snapshot, --robot-plan, --robot-mail",

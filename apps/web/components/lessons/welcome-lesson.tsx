@@ -75,7 +75,7 @@ export function WelcomeLesson() {
             <FeatureCard
               icon={<Bot className="h-5 w-5" />}
               title="Three Coding Agents"
-              description="Claude Code (cc), Codex CLI (cod), and Gemini CLI (gmi)"
+              description="Claude Code (cc), Codex CLI (cod), and Antigravity CLI (agy)"
               gradient="from-amber-500/20 to-orange-500/20"
             />
           </FeatureGrid>
@@ -94,9 +94,9 @@ export function WelcomeLesson() {
             color="from-emerald-500 to-teal-500"
           />
           <AgentCard
-            name="Gemini CLI"
-            shortcut="gmi"
-            color="from-blue-500 to-indigo-500"
+            name="Antigravity CLI"
+            shortcut="agy"
+            color="from-blue-500 to-purple-500"
           />
         </div>
       </Section>
@@ -313,7 +313,7 @@ const archLayers: ArchLayer[] = [
         name: "ACFS Shell Extensions",
         shortName: "acfs.zshrc",
         description:
-          "Custom shell aliases and functions loaded by ACFS. Provides shortcuts like cc, cod, gmi and all the acfs subcommands.",
+          "Custom shell aliases and functions loaded by ACFS. Provides shortcuts like cc, cod, agy and all the acfs subcommands.",
         commands: ["source ~/.acfs.zshrc", "acfs help"],
         dependencies: ["zsh"],
         status: "active",
@@ -389,12 +389,12 @@ const archLayers: ArchLayer[] = [
         status: "ready",
       },
       {
-        id: "gemini",
-        name: "Gemini CLI (Google)",
-        shortName: "gmi",
+        id: "antigravity",
+        name: "Antigravity CLI (Google)",
+        shortName: "agy",
         description:
-          "Google's Gemini-powered coding assistant. Excellent for research-heavy tasks and working with large codebases.",
-        commands: ["gmi", "gmi 'explain this codebase'"],
+          "Google's coding assistant, pinned to Gemini 3.1 Pro (High). Excellent for research-heavy tasks, fresh-eyes review, and large codebases. (Successor to the retired Gemini CLI / gmi.)",
+        commands: ["agy", "agy 'explain this codebase'"],
         dependencies: ["tmux", "runtimes", "git"],
         status: "ready",
       },
@@ -413,9 +413,9 @@ const archLayers: ArchLayer[] = [
         name: "NTM (Neo-Terminal Manager)",
         shortName: "ntm",
         description:
-          "The orchestrator. Launches multiple agents in parallel tmux panes so you can run Claude, Codex, and Gemini simultaneously on different tasks.",
+          "The orchestrator. Launches multiple agents in parallel tmux panes so you can run Claude, Codex, and Antigravity simultaneously on different tasks.",
         commands: ["ntm launch", "ntm status", "ntm kill"],
-        dependencies: ["tmux", "claude", "codex", "gemini"],
+        dependencies: ["tmux", "claude", "codex", "antigravity"],
         status: "active",
       },
       {

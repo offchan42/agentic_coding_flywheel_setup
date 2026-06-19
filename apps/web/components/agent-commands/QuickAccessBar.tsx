@@ -14,10 +14,12 @@ interface QuickCommand {
   iconGradient: string;
 }
 
-const quickCommands: QuickCommand[] = [
+export const quickCommands: QuickCommand[] = [
   { alias: "cc", agentType: "claude", label: "Claude", iconGradient: "from-orange-400 to-amber-500" },
   { alias: "cod", agentType: "codex", label: "Codex", iconGradient: "from-emerald-400 to-teal-500" },
-  { alias: "gmi", agentType: "gemini", label: "Gemini", iconGradient: "from-blue-400 to-indigo-500" },
+  { alias: "agy", agentType: "antigravity", label: "Antigravity", iconGradient: "from-blue-400 to-purple-500" },
+  // Legacy: Gemini CLI was retired 2026-06-18 (kept for users resuming old sessions).
+  { alias: "gmi", agentType: "gemini", label: "Gemini (legacy)", iconGradient: "from-blue-400 to-indigo-500" },
 ];
 
 export function QuickAccessBar() {

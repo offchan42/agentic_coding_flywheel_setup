@@ -54,7 +54,7 @@ export default function CompleteGuidePage() {
               <><strong>You iterate relentlessly.</strong> Round after round of refinement, each time in a fresh conversation, until the suggestions become incremental. Plans created this way routinely reach 3,000 to 6,000+ lines. They are not slop. They are the result of countless iterations and feedback from many frontier models.</>,
               <><strong>You convert the plan into beads.</strong> Beads are self-contained work units (like Jira or Linear tasks, but optimized for use by coding agents). Each bead carries its own context, reasoning, dependencies, and test obligations. A complex plan might produce 200-500 beads with a full dependency graph.</>,
               <><strong>You polish the beads obsessively.</strong> &quot;Check your beads N times, implement once,&quot; where N is as many as you can stomach. Each polishing round finds things the previous round missed: duplicates, missing dependencies, incomplete context. You run this 4-6+ times until convergence.</>,
-              <><strong>You launch a swarm of agents.</strong> Claude Code, Codex, and Gemini-CLI sessions running in parallel, all in the same codebase. They coordinate through Agent Mail, choose work intelligently using bv&apos;s graph-theory routing, and execute beads systematically.</>,
+              <><strong>You launch a swarm of agents.</strong> Claude Code, Codex, and Antigravity CLI sessions running in parallel, all in the same codebase. They coordinate through Agent Mail, choose work intelligently using bv&apos;s graph-theory routing, and execute beads systematically.</>,
               <><strong>You tend the swarm, not the code.</strong> The human checks for stuck beads, rescues agents after context compaction, sends review prompts, and ensures flow quality. You are the clockwork deity. You designed the machine, set it running, and now you manage it.</>,
               <><strong>Agents review, test, and harden.</strong> Self-review with fresh eyes, cross-agent review, random code exploration, testing coverage, UI/UX polish. Rounds and rounds until reviews come back clean.</>,
             ]} />
@@ -737,7 +737,7 @@ bv --robot-triage --robot-triage-by-label    # Group by domain`} />
           {/* SECTION 7: LAUNCHING & RUNNING THE SWARM                       */}
           {/* ============================================================= */}
           <GuideSection id="swarm" number="7" title="Launching & Running the Swarm">
-            <P>You can create sessions using Claude Code, Codex, and Gemini-CLI in different panes in tmux, or use the <a href="https://github.com/Dicklesworthstone/ntm" target="_blank" rel="noopener noreferrer" className="text-[#FF5500] hover:text-[#FFBD2E] underline underline-offset-4 decoration-[#FF5500]/30 hover:decoration-[#FFBD2E]/50 transition-colors">ntm project</a> (Named Tmux Manager) as the command center:</P>
+            <P>You can create sessions using Claude Code, Codex, and Antigravity CLI in different panes in tmux, or use the <a href="https://github.com/Dicklesworthstone/ntm" target="_blank" rel="noopener noreferrer" className="text-[#FF5500] hover:text-[#FFBD2E] underline underline-offset-4 decoration-[#FF5500]/30 hover:decoration-[#FFBD2E]/50 transition-colors">ntm project</a> (Named Tmux Manager) as the command center:</P>
 
             <CodeBlock language="bash" code={`# Spawn a multi-agent session
 ntm spawn myproject --cc=2 --cod=1 --agy=1
@@ -812,8 +812,8 @@ When you're not sure what to do next, use the bv tool mentioned in AGENTS.md to 
                   ["Plan refinement", "GPT Pro + Opus (web)", "Pro reviews, Claude integrates"],
                   ["Plan → Beads conversion", "Claude Code (Opus)", "Best coding agent for structured creation"],
                   ["Bead polishing", "Claude Code (Opus)", "Consistent, thorough"],
-                  ["Implementation", "Claude Code + Codex + Gemini", "Diverse swarm"],
-                  ["Code review", "Claude Code + Gemini", "Gemini good for review duty"],
+                  ["Implementation", "Claude Code + Codex + Antigravity", "Diverse swarm"],
+                  ["Code review", "Claude Code + Antigravity", "Gemini 3.1 Pro good for review duty"],
                   ["Final verification", "Codex (GPT)", "Different model catches different things"],
                 ]}
               />
@@ -821,7 +821,7 @@ When you're not sure what to do next, use the bv tool mentioned in AGENTS.md to 
               <P>Efficiency definitely declines as N grows, but if you have enough tasks in beads and they have Agent Mail and you don&apos;t start them all at the exact same time, you go faster as N grows. The practical limit is around 12 agents on a single project, sometimes higher. Or run 5 agents per project across multiple projects simultaneously. Why the ratio <code>--cc=2 --cod=1 --agy=1</code>? Two Claude sessions because they are great for architecture and complex reasoning; one Codex for fast iteration and testing with complementary strengths; one Antigravity (agy, running Gemini 3.1 Pro) for a different perspective, especially good for docs and review duty.</P>
 
               <DataTable
-                headers={["Open Beads", "Claude (cc)", "Codex (cod)", "Gemini (gmi)"]}
+                headers={["Open Beads", "Claude (cc)", "Codex (cod)", "Antigravity (agy)"]}
                 rows={[
                   ["400+", "4", "4", "2"],
                   ["100-399", "3", "3", "2"],

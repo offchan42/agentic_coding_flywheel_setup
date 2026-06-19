@@ -214,7 +214,7 @@ export default function LaunchOnboardingStep() {
           </div>
           <p className="text-muted-foreground">
             <strong className="text-foreground">Start with Claude Code so you can begin coding immediately.</strong>{" "}
-            Codex and Gemini can wait until you actually plan to use those accounts.
+            Codex and Antigravity can wait until you actually plan to use those accounts.
           </p>
           <div className="space-y-3">
             <div className="flex gap-3">
@@ -256,10 +256,10 @@ export default function LaunchOnboardingStep() {
             <div className="flex gap-3">
               <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[oklch(0.78_0.16_75)] text-[oklch(0.15_0.02_75)] font-bold text-sm">3</div>
               <div>
-                <p className="font-medium">Gemini CLI (optional)</p>
+                <p className="font-medium">Antigravity CLI (optional)</p>
                 <CommandCard
-                  command="mkdir -p ~/.gemini && ${EDITOR:-nano} ~/.gemini/.env"
-                  description="Recommended on a headless VPS. Add GEMINI_API_KEY to ~/.gemini/.env, then run gemini."
+                  command="agy"
+                  description="Run agy once and follow the prompts to sign in with your Google account. The model is pinned to Gemini 3.1 Pro (High)."
                   runLocation="vps"
                 />
               </div>
@@ -269,7 +269,7 @@ export default function LaunchOnboardingStep() {
             After authenticating, you can use the shortcuts (vibe mode):{" "}
             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">cc</code> (Claude),{" "}
             <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">cod</code> (Codex),{" "}
-            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">gmi</code> (Gemini).
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">agy</code> (Antigravity).
           </GuideTip>
         </div>
       </Card>
@@ -810,7 +810,7 @@ export default function LaunchOnboardingStep() {
                 with auto-suggestions and beautiful colors
               </li>
               <li>
-                <strong>AI coding assistants:</strong> Claude Code, Codex, and Gemini CLI
+                <strong>AI coding assistants:</strong> Claude Code, Codex, and Antigravity CLI
                 are ready to help you write code
               </li>
               <li>

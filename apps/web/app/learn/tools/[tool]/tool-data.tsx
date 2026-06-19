@@ -24,6 +24,7 @@ import { getManifestCommand } from "@/lib/manifest-adapter";
 export type ToolId =
   | "claude-code"
   | "codex-cli"
+  | "antigravity-cli"
   | "gemini-cli"
   | "ntm"
   | "beads"
@@ -123,7 +124,7 @@ const RAW_TOOLS: Record<ToolId, ToolCard> = {
     docsUrl: "https://docs.anthropic.com/en/docs/claude-code",
     docsLabel: "Anthropic Docs",
     quickCommand: "cc",
-    relatedTools: ["codex-cli", "gemini-cli", "ntm"],
+    relatedTools: ["codex-cli", "antigravity-cli", "ntm"],
   },
   "codex-cli": {
     id: "codex-cli",
@@ -135,19 +136,31 @@ const RAW_TOOLS: Record<ToolId, ToolCard> = {
     docsUrl: "https://github.com/openai/codex",
     docsLabel: "GitHub",
     quickCommand: "cod",
-    relatedTools: ["claude-code", "gemini-cli", "ntm"],
+    relatedTools: ["claude-code", "antigravity-cli", "ntm"],
+  },
+  "antigravity-cli": {
+    id: "antigravity-cli",
+    title: "Antigravity CLI",
+    tagline: "Google's coding agent, pinned to Gemini 3.1 Pro (High) - fresh-eyes docs & review",
+    icon: <Search className="h-8 w-8" aria-hidden="true" />,
+    gradient: "from-blue-500/20 via-violet-500/20 to-purple-500/20",
+    glowColor: "rgba(139,92,246,0.4)",
+    docsUrl: "https://github.com/google-antigravity/antigravity-cli",
+    docsLabel: "GitHub",
+    quickCommand: "agy",
+    relatedTools: ["claude-code", "codex-cli", "ntm"],
   },
   "gemini-cli": {
     id: "gemini-cli",
-    title: "Gemini CLI",
-    tagline: "Google's coding agent - large context exploration",
+    title: "Gemini CLI (legacy)",
+    tagline: "Retired 2026-06-18 - superseded by the Antigravity CLI (agy)",
     icon: <Search className="h-8 w-8" aria-hidden="true" />,
     gradient: "from-blue-500/20 via-indigo-500/20 to-blue-500/20",
     glowColor: "rgba(99,102,241,0.4)",
     docsUrl: "https://github.com/google-gemini/gemini-cli",
     docsLabel: "GitHub",
     quickCommand: "gmi",
-    relatedTools: ["claude-code", "codex-cli", "ntm"],
+    relatedTools: ["antigravity-cli", "claude-code", "codex-cli"],
   },
   ntm: {
     id: "ntm",
@@ -229,7 +242,7 @@ const RAW_TOOLS: Record<ToolId, ToolCard> = {
     glowColor: "rgba(251,146,60,0.4)",
     docsUrl: "https://github.com/Dicklesworthstone/coding_agent_account_manager",
     docsLabel: "GitHub",
-    relatedTools: ["claude-code", "codex-cli", "gemini-cli"],
+    relatedTools: ["claude-code", "codex-cli", "antigravity-cli"],
   },
   slb: {
     id: "slb",

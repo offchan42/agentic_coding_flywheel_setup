@@ -484,7 +484,7 @@ const _tldrFlywheelTools: TldrFlywheelTool[] = [
     category: "core",
     stars: 69,
     whatItDoes:
-      "A multi-agent tmux orchestration tool with 80+ commands. Spawns Claude, Codex, and Gemini agents in named panes with type classification (cc/cod/gmi). Monitors context windows, detects file conflicts, and provides robot mode for automation.",
+      "A multi-agent tmux orchestration tool with 80+ commands. Spawns Claude, Codex, and Antigravity agents in named panes with type classification (cc/cod/agy). Monitors context windows, detects file conflicts, and provides robot mode for automation.",
     whyItsUseful:
       "Running multiple AI agents simultaneously creates chaos without orchestration. NTM provides the command center: spawn agents with one command, broadcast prompts to specific types, monitor context usage, and coordinate via Agent Mail. Sessions persist across SSH disconnects and system reboots.",
     implementationHighlights: [
@@ -521,7 +521,7 @@ const _tldrFlywheelTools: TldrFlywheelTool[] = [
     techStack: ["Go 1.25+", "Bubble Tea", "tmux 3.0+", "Catppuccin themes"],
     keyFeatures: [
       "80+ commands: spawn, send, dashboard, checkpoint, health, and more",
-      "Agent type classification with named panes (cc, cod, gmi)",
+      "Agent type classification with named panes (cc, cod, agy)",
       "Context window monitoring with automatic compaction recovery",
       "Command palette TUI with fuzzy search and pinned commands",
       "Robot mode for scripting and agent automation",

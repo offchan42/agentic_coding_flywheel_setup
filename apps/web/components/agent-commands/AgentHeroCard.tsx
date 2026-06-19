@@ -6,7 +6,7 @@ import { motion, AnimatePresence, springs } from "@/components/motion";
 import { cn, copyTextToClipboard } from "@/lib/utils";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 
-export type AgentType = "claude" | "codex" | "gemini";
+export type AgentType = "claude" | "codex" | "antigravity" | "gemini";
 
 export interface AgentInfo {
   id: AgentType;
@@ -50,12 +50,19 @@ export const agentPersonalities: Record<
     borderHover: "hover:border-[oklch(0.72_0.19_145/0.5)]",
     tagline: "Structured & precise",
   },
+  antigravity: {
+    gradient: "from-blue-400 via-violet-400 to-purple-500",
+    glowColor: "oklch(0.7 0.2 280)",
+    bgGlow: "bg-[oklch(0.7_0.2_280/0.15)]",
+    borderHover: "hover:border-[oklch(0.7_0.2_280/0.5)]",
+    tagline: "Gemini 3.1 Pro — fresh-eyes docs & review",
+  },
   gemini: {
     gradient: "from-blue-400 via-indigo-400 to-blue-500",
     glowColor: "oklch(0.75 0.18 195)",
     bgGlow: "bg-[oklch(0.75_0.18_195/0.15)]",
     borderHover: "hover:border-[oklch(0.75_0.18_195/0.5)]",
-    tagline: "Large context exploration",
+    tagline: "Gemini CLI — legacy, retired 2026-06-18",
   },
 };
 
@@ -93,7 +100,7 @@ export function AgentHeroCard({
       }
 
       const keyNum = parseInt(e.key);
-      if (keyNum === index + 1 && keyNum >= 1 && keyNum <= 3) {
+      if (keyNum === index + 1 && keyNum >= 1 && keyNum <= 4) {
         cardRef.current?.focus();
         onKeyboardFocus?.(true);
         if (!isExpanded) {

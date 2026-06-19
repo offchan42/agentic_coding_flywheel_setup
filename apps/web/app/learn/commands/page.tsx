@@ -155,14 +155,6 @@ const COMMANDS: CommandEntry[] = [
     learnMoreHref: "/learn/tools/codex-cli",
   },
   {
-    name: "antigravity",
-    fullName: "Antigravity CLI",
-    description: "Full command (same as `agy` on ACFS)",
-    example: "antigravity --help",
-    category: "agents",
-    learnMoreHref: "/learn/tools/antigravity-cli",
-  },
-  {
     name: "gemini",
     fullName: "Gemini CLI (legacy)",
     description: "Full command for the retired `gmi`; kept for old sessions",

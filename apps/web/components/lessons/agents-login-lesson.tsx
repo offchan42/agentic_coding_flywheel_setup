@@ -354,9 +354,11 @@ function AgentInfoCard({
           <code className="px-3 py-1.5 rounded-lg bg-black/40 border border-white/[0.08] text-xs font-mono text-white/70">
             {command}
           </code>
-          <code className="px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-xs font-mono text-primary">
-            {alias}
-          </code>
+          {alias !== command && (
+            <code className="px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-xs font-mono text-primary">
+              {alias}
+            </code>
+          )}
         </div>
       </div>
     </motion.div>

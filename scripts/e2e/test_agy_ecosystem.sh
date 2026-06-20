@@ -79,13 +79,16 @@ else
   agy_e2e_skip "casr not on PATH" casr_resume
 fi
 
-# --- step 5: caam knows the agy/antigravity account surface ------------------
+# --- step 5: caam knows the agy/antigravity provider -------------------------
+# `caam ls agy` succeeds for a RECOGNIZED tool (it reports profiles — possibly
+# zero — for agy); it errors "unknown tool" only if agy is not a registered
+# provider. We assert recognition of the provider, not a configured account.
 if command -v caam >/dev/null 2>&1; then
-  CAAM="$(timeout 20 caam ls 2>&1; timeout 20 caam providers 2>&1 || true)"
-  if printf '%s' "$CAAM" | grep -qiE 'antigravity|\bagy\b'; then
-    agy_e2e_pass "caam recognizes the agy/antigravity account surface" caam_account
+  CAAM="$(timeout 20 caam ls agy 2>&1 || true)"
+  if printf '%s' "$CAAM" | grep -qi 'agy' && ! printf '%s' "$CAAM" | grep -qiE 'unknown|unsupported|invalid tool'; then
+    agy_e2e_pass "caam recognizes agy as a provider ($(printf '%s' "$CAAM" | head -1))" caam_account
   else
-    agy_e2e_log warn caam_account "msg=caam did not name antigravity/agy (no agy account configured?)"
+    agy_e2e_fail "caam does not recognize the agy provider" caam_account
   fi
 else
   agy_e2e_skip "caam not on PATH" caam_account
@@ -106,14 +109,22 @@ else
   agy_e2e_skip "dcg not on PATH" dcg_guard
 fi
 
-# --- step 7: am (agent mail) recognizes the agy program identity -------------
-# am is a Rust binary; agy identity recognition lives in its agent-detection.
+# --- step 7: am (agent mail) carries the agy detection capability -------------
+# am recognizes an agy agent at RUNTIME (when an agy pane registers its program
+# identity). Without a live registered pane, `am setup status` won't list it, so
+# we assert the *capability* is present in the binary's agent-detection (the
+# antigravity provider). Full live identity-tracking is exercised by the
+# ntm-spawn-agy-pane test (bd-47kjh.4.3).
 if command -v am >/dev/null 2>&1; then
-  AM_OUT="$(am --help 2>&1; am agents 2>&1 || true)"
-  if printf '%s' "$AM_OUT" | grep -qiE 'antigravity|\bagy\b'; then
-    agy_e2e_pass "am surfaces the agy/antigravity identity" am_identity
+  AM_BIN="$(command -v am)"
+  # Capture to vars and use bash string matching — avoids the pipefail+SIGPIPE
+  # trap where `strings | grep -q` exits 141 because grep closes the pipe early.
+  AM_STATUS="$(am setup status 2>/dev/null || true)"
+  AM_STRINGS="$(strings "$AM_BIN" 2>/dev/null || true)"
+  if [[ "$AM_STATUS" == *[Aa]ntigravity* || "$AM_STRINGS" == *antigravity-cli* ]]; then
+    agy_e2e_pass "am carries the antigravity (agy) agent-detection capability" am_identity
   else
-    agy_e2e_log warn am_identity "msg=am help/agents did not name agy (detection may be runtime-only)"
+    agy_e2e_fail "am binary has no antigravity detection capability" am_identity
   fi
 else
   agy_e2e_skip "am not on PATH" am_identity

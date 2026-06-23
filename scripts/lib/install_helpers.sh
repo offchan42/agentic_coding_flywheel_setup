@@ -510,6 +510,39 @@ acfs_use_generated_for_module() {
     acfs_use_generated_for_category "$category"
 }
 
+acfs_only_selection_includes_category() {
+    local category="${1:-}"
+    local module=""
+
+    [[ -n "$category" ]] || return 1
+    [[ "${ONLY_MODULES+x}" == "x" ]] || return 1
+    [[ "${#ONLY_MODULES[@]}" -gt 0 ]] || return 1
+
+    for module in "${ONLY_MODULES[@]}"; do
+        if [[ "${ACFS_MODULE_CATEGORY[$module]:-}" == "$category" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+acfs_should_run_generated_category_for_selection() {
+    local category="${1:-}"
+    [[ -n "$category" ]] || return 1
+
+    if acfs_use_generated_for_category "$category"; then
+        return 0
+    fi
+
+    # A targeted --only module request should invoke the manifest-backed
+    # installer for that module's category even while the category is still
+    # behind the default migration gate. Without this, `--only foo.bar` can
+    # select foo.bar in the plan but then run the legacy phase that has no
+    # module-level entrypoint for it.
+    acfs_only_selection_includes_category "$category"
+}
+
 # Returns generated function name (from manifest_index) if enabled, else empty string.
 acfs_get_module_installer() {
     local module_id="${1:-}"

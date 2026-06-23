@@ -58,6 +58,7 @@ reset_generated_flags() {
         ACFS_USE_GENERATED_USERS \
         ACFS_USE_GENERATED_SHELL \
         ACFS_USE_GENERATED_CLI \
+        ACFS_USE_GENERATED_NETWORK \
         ACFS_USE_GENERATED_LANG \
         ACFS_USE_GENERATED_TOOLS \
         ACFS_USE_GENERATED_AGENTS \
@@ -638,6 +639,22 @@ test_generated_defaults() {
     test_fail "$name"
 }
 
+test_generated_for_explicit_only_category() {
+    local name="Explicit --only module enables generated category for selection"
+    reset_selection
+    reset_generated_flags
+    ONLY_MODULES=("network.ssh_keepalive")
+
+    if acfs_resolve_selection 2>/dev/null && \
+       ! acfs_use_generated_category "network" 2>/dev/null && \
+       acfs_should_run_generated_category_for_selection "network" 2>/dev/null; then
+        test_pass "$name"
+        return
+    fi
+
+    test_fail "$name"
+}
+
 test_generated_global_override() {
     local name="Global ACFS_USE_GENERATED=0 forces legacy for all categories"
     reset_generated_flags
@@ -747,6 +764,7 @@ test_should_run_module_false
 
 # Generated category flag tests (mjt.5.6)
 test_generated_defaults
+test_generated_for_explicit_only_category
 test_generated_global_override
 test_generated_per_category_override
 test_generated_env_var_csv_override

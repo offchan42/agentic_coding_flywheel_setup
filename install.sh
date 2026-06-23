@@ -5287,7 +5287,7 @@ install_cli_tools() {
         used_generated_cli=true
     fi
 
-    if acfs_use_generated_category "network"; then
+    if acfs_should_run_generated_category_for_selection "network"; then
         log_detail "Using generated installers for network (phase 5)"
         acfs_run_generated_category_phase "network" "5" || return 1
         used_generated_network=true

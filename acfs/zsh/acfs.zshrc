@@ -133,7 +133,13 @@ if command -v fd &>/dev/null; then
 elif command -v fdfind &>/dev/null; then
   alias fd='fdfind'
 fi
-command -v rg &>/dev/null && alias grep='rg'
+# ripgrep as standalone aliases (NOT aliased over 'grep' — rg is not a drop-in
+# replacement: e.g. grep's -E means ERE while rg's -E means --encoding, so
+# `grep -E 'pat' file` breaks under an alias. Same principle as fd/find above.)
+if command -v rg &>/dev/null; then
+  alias rgrep='rg'
+  alias search='rg'
+fi
 command -v dust &>/dev/null && alias du='dust'
 command -v btop &>/dev/null && alias top='btop'
 command -v nvim &>/dev/null && alias vim='nvim'

@@ -497,8 +497,36 @@ acfs_use_generated_for_category() {
         return 1
     fi
 
-    # 3) Default: generated only for migrated categories
-    _acfs_category_is_migrated "$category"
+    # 3) Default: generated for migrated categories...
+    if _acfs_category_is_migrated "$category"; then
+        return 0
+    fi
+
+    # 3b) ...or for any category that has a module explicitly selected into the
+    # effective plan (e.g. `--only network.ssh_keepalive`). Without this, a
+    # targeted request can select a module whose category is not migrated by
+    # default, and the phase dispatcher would silently never run the generated
+    # installer — the command exits "successfully" but does nothing (#304).
+    # We intentionally gate this on the plan (not the full module set) so a
+    # default install of an unmigrated category still uses the legacy path.
+    acfs_category_in_effective_plan "$category"
+}
+
+# Returns 0 (true) if any module of the given category is present in the
+# resolved effective plan (ACFS_EFFECTIVE_PLAN). Used to honor targeted
+# selections of not-yet-migrated generated categories.
+acfs_category_in_effective_plan() {
+    local category="${1:-}"
+    [[ -n "$category" ]] || return 1
+    [[ "${#ACFS_EFFECTIVE_PLAN[@]}" -gt 0 ]] || return 1
+
+    local module=""
+    for module in "${ACFS_EFFECTIVE_PLAN[@]}"; do
+        if [[ "${ACFS_MODULE_CATEGORY[$module]:-}" == "$category" ]]; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 # Determines category from module ID (e.g., "lang.bun" -> "lang").

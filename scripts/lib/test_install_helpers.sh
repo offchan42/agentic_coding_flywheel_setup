@@ -66,6 +66,11 @@ reset_generated_flags() {
         ACFS_USE_GENERATED_STACK \
         ACFS_USE_GENERATED_ACFS
     ACFS_GENERATED_DEFAULT_CATEGORIES=()
+    # Clear any plan left over from prior tests so category-flag resolution is
+    # tested in isolation. acfs_use_generated_for_category now also honors a
+    # category that has a module in the effective plan (targeted --only support,
+    # #304), so a stale plan would otherwise leak into these flag tests.
+    ACFS_EFFECTIVE_PLAN=()
 }
 
 # ============================================================
@@ -684,6 +689,25 @@ test_generated_env_var_csv_override() {
     test_fail "$name"
 }
 
+test_generated_targeted_only_unmigrated_category() {
+    local name="Targeted --only of unmigrated generated category runs generated installer (#304)"
+    reset_generated_flags
+    # network is NOT in the default migrated set...
+    ACFS_GENERATED_DEFAULT_CATEGORIES=()
+    # ...but a module of that category is explicitly selected into the plan.
+    ACFS_EFFECTIVE_PLAN=("network.ssh_keepalive")
+    ACFS_MODULE_CATEGORY["network.ssh_keepalive"]="network"
+
+    # Generated path must be chosen for network (plan-present), but not for an
+    # unrelated, unmigrated, unplanned category.
+    if acfs_use_generated_category "network" 2>/dev/null && \
+       ! acfs_use_generated_category "cloud" 2>/dev/null; then
+        test_pass "$name"
+        return
+    fi
+    test_fail "$name"
+}
+
 # ============================================================
 # Run Tests
 # ============================================================
@@ -750,6 +774,7 @@ test_generated_defaults
 test_generated_global_override
 test_generated_per_category_override
 test_generated_env_var_csv_override
+test_generated_targeted_only_unmigrated_category
 
 echo ""
 echo "====================================="
